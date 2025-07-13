@@ -1,0 +1,94 @@
+package com.olatech.shopxauthservice.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Configuration des clients OAuth2 pour Google et Facebook
+ */
+@Configuration
+public class OAuth2Config {
+
+    @Value("${oauth2.client-registrations.google.client-id}")
+    private String googleClientId;
+
+    @Value("${oauth2.client-registrations.google.client-secret}")
+    private String googleClientSecret;
+
+    @Value("${oauth2.client-registrations.google.redirect-uri}")
+    private String googleRedirectUri;
+
+    @Value("${oauth2.client-registrations.facebook.client-id}")
+    private String facebookClientId;
+
+    @Value("${oauth2.client-registrations.facebook.client-secret}")
+    private String facebookClientSecret;
+
+    @Value("${oauth2.client-registrations.facebook.redirect-uri}")
+    private String facebookRedirectUri;
+
+    /**
+     * Configure les clients OAuth2 disponibles dans l'application
+     */
+    @Bean
+    public ClientRegistrationRepository clientRegistrationRepository() {
+        List<ClientRegistration> registrations = new ArrayList<>();
+        
+        // Ajouter la configuration de Google
+        registrations.add(googleClientRegistration());
+        
+        // Ajouter la configuration de Facebook
+        registrations.add(facebookClientRegistration());
+        
+        return new InMemoryClientRegistrationRepository(registrations);
+    }
+
+    /**
+     * Configuration du client OAuth2 pour Google
+     */
+    private ClientRegistration googleClientRegistration() {
+        return ClientRegistration.withRegistrationId("google")
+                .clientId(googleClientId)
+                .clientSecret(googleClientSecret)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri(googleRedirectUri)
+                .scope("openid", "profile", "email")
+                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
+                .tokenUri("https://oauth2.googleapis.com/token")
+                .userInfoUri("https://openidconnect.googleapis.com/v1/userinfo")
+                .userNameAttributeName(IdTokenClaimNames.SUB)
+                .jwkSetUri("https://www.googleapis.com/oauth2/v3/certs")
+                .clientName("Google")
+                .build();
+    }
+
+    /**
+     * Configuration du client OAuth2 pour Facebook
+     */
+    private ClientRegistration facebookClientRegistration() {
+        return ClientRegistration.withRegistrationId("facebook")
+                .clientId(facebookClientId)
+                .clientSecret(facebookClientSecret)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri(facebookRedirectUri)
+                .scope("email", "public_profile", "pages_manage_engagement")
+                .authorizationUri("https://www.facebook.com/v15.0/dialog/oauth")
+                .tokenUri("https://graph.facebook.com/v15.0/oauth/access_token")
+                .userInfoUri("https://graph.facebook.com/v15.0/me?fields=id,name,email,picture")
+                .userNameAttributeName("id")
+                .clientName("Facebook")
+                .build();
+    }
+}

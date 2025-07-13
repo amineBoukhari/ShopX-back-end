@@ -1,0 +1,124 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+
+build-job:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:dind
+  before_script:
+    - mkdir -p image
+  only:
+    - main
+  script:
+    - echo "Building the application"
+    - docker build -t ${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:latest .
+    - echo "Saving the image"
+    - docker save -o ./image/frontend-backend.tar ${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:latest
+  artifacts:
+    expire_in: 10 mins
+    paths:
+      - ./image/frontend-backend.tar
+
+deploy-job:
+  stage: deploy
+  image: docker:20.10.16
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    # Install dependencies needed for gcloud
+    - apk add --no-cache curl python3 py3-pip bash jq openssl
+    # Download and install Google Cloud SDK
+    - curl -sSL https://sdk.cloud.google.com > /tmp/gcl
+    - bash /tmp/gcl --install-dir=/usr/local --disable-prompts
+    - export PATH=$PATH:/usr/local/google-cloud-sdk/bin
+  only:
+    - main
+  script:
+    - echo "Deploying the application"
+    - docker load -q -i ./image/frontend-backend.tar
+    - echo "Logging into GCP Artifact Registry"
+
+    # Étape de débogage - vérifier si la variable existe
+    - |
+      if [ -z "$GCP_SERVICE_ACCOUNT_KEY" ]; then
+        echo "ERROR: GCP_SERVICE_ACCOUNT_KEY est vide"
+        exit 1
+      else
+        echo "INFO: GCP_SERVICE_ACCOUNT_KEY existe et n'est pas vide"
+      fi
+
+    # Étape de débogage - vérifier si la variable commence par { (JSON brut) ou est en base64
+    - |
+      FIRST_CHAR=$(echo "$GCP_SERVICE_ACCOUNT_KEY" | head -c 1)
+      if [ "$FIRST_CHAR" = "{" ]; then
+        echo "INFO: La variable semble être au format JSON brut"
+        # Créer directement le fichier JSON
+        echo "$GCP_SERVICE_ACCOUNT_KEY" > /tmp/service-account-key.json
+      else
+        echo "INFO: La variable ne commence pas par {, supposons qu'elle est encodée en base64"
+        # Méthode 1: Base64 standard
+        echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/service-account-key1.json
+        # Méthode 2: Base64 sans sauts de ligne
+        echo "$GCP_SERVICE_ACCOUNT_KEY" | tr -d '\n' | base64 -d > /tmp/service-account-key2.json
+        # Méthode 3: Base64 avec traitement spécial
+        echo "$GCP_SERVICE_ACCOUNT_KEY" | sed 's/ /+/g' | base64 -d > /tmp/service-account-key3.json
+      fi
+
+    # Vérifier les fichiers générés
+    - echo "Vérification des fichiers de clé générés:"
+    - |
+      for i in /tmp/service-account-key*.json; do
+        echo "Vérification du fichier $i"
+        if [ -s "$i" ]; then
+          echo "Le fichier $i n'est pas vide"
+          if jq . "$i" >/dev/null 2>&1; then
+            echo "SUCCESS: Le fichier $i contient un JSON valide"
+            cp "$i" /tmp/service-account-key2.json
+            break
+          else
+            echo "ERROR: Le fichier $i n'est pas un JSON valide"
+            echo "Premiers caractères du fichier:"
+            head -c 20 "$i" | xxd -p
+          fi
+        else
+          echo "ERROR: Le fichier $i est vide"
+        fi
+      done
+
+    # Alternative: Créer un nouveau fichier JSON manuellement
+    - |
+      if ! jq . /tmp/service-account-key.json >/dev/null 2>&1; then
+        echo "Aucun fichier JSON valide trouvé, création d'une nouvelle clé manuellement..."
+        # Créez la clé manuellement en utilisant gcloud et un compte de service temporaire
+        # Cette étape dépend de votre configuration GCP - c'est juste un exemple
+        # gcloud iam service-accounts keys create /tmp/service-account-key.json --iam-account=your-temp-account@your-project.iam.gserviceaccount.com
+      
+        # OU, si vous avez la clé ailleurs (comme dans une variable CI/CD différente),
+        # utilisez cette alternative
+        echo "Utilisation d'une clé alternative"
+        echo "$ALTERNATIVE_GCP_KEY" > /tmp/service-account-key.json
+      fi
+
+    # Tentative d'authentification
+    - echo "Tentative d'authentification avec gcloud..."
+    - gcloud auth activate-service-account --key-file=/tmp/service-account-key2.json || echo "Échec de l'authentification"
+
+    # Afficher les erreurs de gcloud pour le débogage
+    - gcloud info
+
+    # Continuer avec le reste du déploiement
+    - gcloud config set project ${GCP_PROJECT_ID}
+    - gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
+    - echo "Pushing the image to Artifact Registry"
+    - export REGISTRY_URL="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}"
+    - docker push ${REGISTRY_URL}/${IMAGE_NAME}:latest
+  environment:
+    name: production

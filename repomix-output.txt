@@ -1,0 +1,6136 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+config/
+  JWTFilter.java
+  OAuth2LoginSuccessHandler.java
+  S3Config.java
+  SecurityConfig.java
+Controller/
+  ArticleController.java
+  CategoryController.java
+  CollectionController.java
+  ProductTypeController.java
+  SessionsController.java
+  StoreController.java
+  StoreInvitationController.java
+  StoreStaffController.java
+  UsersController.java
+DTO/
+  Product/
+    CreateProductDto.java
+    ProductFieldDefinitionDTO.java
+    ProductTypeDTO.java
+  CategoryDTO.java
+  CollectionDTO.java
+  InvitationDTO.java
+  LoginBody.java
+  LoginResponse.java
+  ProductDTO.java
+  RefreshTokenResponse.java
+  RegisterBody.java
+  StoreDTO.java
+  StoreStaffDTO.java
+  UpdateRoleDTO.java
+  VariantDTO.java
+exceptions/
+  DuplicateSkuException.java
+  ErrorResponse.java
+  GlobalExceptionHandler.java
+  ResourceNotFoundException.java
+  UnauthorizedException.java
+  UserAlreadyExistsException.java
+Mapper/
+  Product/
+    ProductTypeMapper.java
+  ProductMapper.java
+Model/
+  shared/
+    HistoryProductMethod.java
+    HistoryProductStore.java
+    SyncStatus.java
+  AttributeDefinition.java
+  Category.java
+  Collection.java
+  Currency.java
+  Product.java
+  ProductFieldDefinition.java
+  ProductFieldValue.java
+  ProductImage.java
+  ProductType.java
+  ProductVariant.java
+  Sessions.java
+  Store.java
+  StoreInvitation.java
+  StoreRole.java
+  UserPrincipal.java
+  Users.java
+  VariantFieldDefinition.java
+  VariantImage.java
+Repository/
+  CategoryRepository.java
+  CollectionRepository.java
+  HistoryProductStoreRepository.java
+  ProductFieldDefinitionRepository.java
+  ProductFieldValueRepository.java
+  ProductRepository.java
+  ProductTypeRepository.java
+  ProductVariantRepository.java
+  SessionRepo.java
+  StoreInvitationRepository.java
+  StoreRepository.java
+  StoreRoleRepository.java
+  UserRepo.java
+Service/
+  Product/
+    ProductTypeService.java
+  CategoryImportService.java
+  CategorySearchService.java
+  CategoryService.java
+  CollectionService.java
+  CustomOAuth2UserService.java
+  CustomUserDetailsService.java
+  HistoryProductStoreService.java
+  JWTService.java
+  ProductService.java
+  ProductValidationService.java
+  S3Service.java
+  SessionService.java
+  StoreInvitationService.java
+  StoreService.java
+  StoreStaffService.java
+  UserService.java
+  VariantFieldDefinitionRepository.java
+ShopxAuthServiceApplication.java
+
+================================================================
+Files
+================================================================
+
+================
+File: config/JWTFilter.java
+================
+package com.olatech.shopxauthservice.config;
+
+
+import com.olatech.shopxauthservice.Service.CustomUserDetailsService;
+import com.olatech.shopxauthservice.Service.JWTService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.context.ApplicationContext;
+import java.io.IOException;
+
+@Component
+public class JWTFilter extends OncePerRequestFilter {
+    @Autowired
+    private JWTService jwtService;
+
+    @Autowired
+    ApplicationContext context;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+//  Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJraWxsIiwiaWF0IjoxNzIzMTgzNzExLCJleHAiOjE3MjMxODM4MTl9.5nf7dRzKRiuGurN2B9dHh_M5xiu73ZzWPr6rbhOTTHs
+        String authHeader = request.getHeader("Authorization");
+        String token = null;
+        String username = null;
+
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+            username = jwtService.extractUserName(token);
+        }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = context.getBean(CustomUserDetailsService.class).loadUserByUsername(username);
+            if (jwtService.validateToken(token, userDetails)) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                authToken.setDetails(new WebAuthenticationDetailsSource()
+                        .buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
+
+================
+File: config/OAuth2LoginSuccessHandler.java
+================
+package com.olatech.shopxauthservice.config;
+
+import com.olatech.shopxauthservice.Service.JWTService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
+import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.io.IOException;
+
+@Component
+public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
+
+    @Autowired
+    private JWTService jwtService;
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        Authentication authentication) throws IOException {
+        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+
+        // Générer JWT
+        String token = jwtService.generateToken(oAuth2User.getAttribute("name"));
+
+        // Rediriger vers le frontend avec le token
+        String targetUrl = UriComponentsBuilder.fromUriString("https://app-shopx.olatechsn.com/app")
+                .queryParam("token", token)
+                .build().toUriString();
+
+        getRedirectStrategy().sendRedirect(request, response, targetUrl);
+    }
+}
+
+================
+File: config/S3Config.java
+================
+package com.olatech.shopxauthservice.config;
+
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class S3Config {
+
+    @Value("${aws.access.key.id}")
+    private String accessKeyId;
+
+    @Value("${aws.secret.access.key}")
+    private String secretAccessKey;
+
+    @Value("${aws.s3.region}")
+    private String region;
+
+    @Bean
+    public AmazonS3 amazonS3() {
+        AWSCredentials credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
+        return AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(region)
+                .build();
+    }
+}
+
+================
+File: config/SecurityConfig.java
+================
+package com.olatech.shopxauthservice.config;
+
+import com.olatech.shopxauthservice.Service.CustomOAuth2UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Autowired
+    private  UserDetailsService userDetailsService;
+
+    @Autowired
+    private CustomOAuth2UserService oAuth2UserService;
+
+    @Autowired
+    private JWTFilter jwtFilter;
+
+    @Autowired
+    private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        // Enable CORS for everywhere
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("https://olatechsn.com", "http://localhost:3000","https://app-shopx.olatechsn.com", "http://192.168.1.42:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"));
+        configuration.setAllowCredentials(true);
+        configuration.applyPermitDefaultValues();
+        Map<String, CorsConfiguration> corsConfigurations = new HashMap<>();
+        corsConfigurations.put("/**", configuration);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.setCorsConfigurations(corsConfigurations);
+        return source;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http.
+                cors(Customizer.withDefaults()).
+                csrf(csrf -> csrf.disable()).
+                authorizeHttpRequests(request -> request.
+                        requestMatchers( "/login", "/register" ,"/oauth2/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**", "/swagger-resources/**", "refresh","/refresh").
+                        permitAll().
+                        anyRequest().
+                        authenticated()).
+                //formLogin(Customizer.withDefaults()).
+                oauth2Login(
+                        oauth2 -> oauth2.userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
+                                .successHandler(oAuth2LoginSuccessHandler).
+                                failureUrl("/login?error=true")
+                ).
+                logout(logout -> logout
+                        .logoutUrl("/logout") // Endpoint de déconnexion
+                        .logoutSuccessUrl("/login?logout=true") // Redirection après déconnexion
+                        .invalidateHttpSession(true) // Invalide la session HTTP
+                        .clearAuthentication(true) // Efface les informations d'authentification
+                        .deleteCookies("JSESSIONID") // Supprime le cookie de session si utilisé
+                ).
+                httpBasic(Customizer.withDefaults()).
+                sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)).
+                addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class).
+                build();
+
+    }
+
+    @Bean
+    public AuthenticationProvider authProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(new BCryptPasswordEncoder(10));
+        return provider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+
+
+
+
+}
+
+================
+File: Controller/ArticleController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.olatech.shopxauthservice.DTO.Product.CreateProductDto;
+import com.olatech.shopxauthservice.DTO.VariantDTO;
+import com.olatech.shopxauthservice.Model.Product;
+import com.olatech.shopxauthservice.Model.ProductVariant;
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.ProductRepository;
+import com.olatech.shopxauthservice.Service.ProductService;
+import com.olatech.shopxauthservice.Service.S3Service;
+import com.olatech.shopxauthservice.Service.UserService;
+import com.olatech.shopxauthservice.DTO.ProductDTO;
+
+import com.olatech.shopxauthservice.exceptions.DuplicateSkuException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.ValidationException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.*;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/stores/{storeId}/articles")
+@Validated
+@Tag(name = "Articles", description = "Article management APIs")
+public class ArticleController {
+
+
+    @Autowired
+    private  ProductService articleService;
+    @Autowired
+    private  UserService userService;
+    @Autowired
+    private S3Service s3Service;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+
+
+
+    @Operation(
+            summary = "Create a new article",
+            description = "Creates a new article in the specified store. Requires store manager permissions."
+    )
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createArticle(
+            @PathVariable Long storeId,
+            @RequestParam("name") String name,
+            @RequestParam("slug") String slug,
+            @RequestParam("description") String description,
+            @RequestParam("basePrice") BigDecimal basePrice,
+            @RequestParam("salePrice") BigDecimal salePrice,
+            @RequestParam("manageStock") boolean manageStock,
+            @RequestParam("stockThreshold") int stockThreshold,
+            @RequestParam(value = "categoryId", required = false) Long categoryId,
+            @RequestParam(value = "tags", required = false) Set<String> tags,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images,
+            Authentication authentication) {
+        try {
+            ProductDTO productDTO = new ProductDTO();
+            productDTO.setName(name);
+            productDTO.setSlug(slug);
+            productDTO.setDescription(description);
+            productDTO.setBasePrice(basePrice);
+            productDTO.setSalePrice(salePrice);
+            productDTO.setManageStock(manageStock);
+            productDTO.setStockThreshold(stockThreshold);
+            productDTO.setCategoryId(categoryId);
+            productDTO.setTags(tags);
+            productDTO.setImages(images);
+            Users currentUser = userService.getUserByUsername(authentication.getName());
+            //afficher le produit
+            System.out.println("ProductDTO: " + productDTO.toString());
+            // Handle image uploads
+            List<String> imageUrls = new ArrayList<>();
+            if (productDTO.getImages() != null) {
+                for (MultipartFile image : productDTO.getImages()) {
+                    System.out.println("Image: " + image.getOriginalFilename());
+                    try {
+                        if (!image.isEmpty()) {
+                            String imageUrl = s3Service.uploadFile(image);
+                            imageUrls.add(imageUrl);
+                        }
+                    } catch (IOException e) {
+                        // Log the error
+                        System.out.println("Failed to upload image: " + e.getMessage());
+                        // Return error response
+                        return ResponseEntity
+                                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("Failed to upload image: " + e.getMessage());
+                    }
+                }
+            }
+
+            // Create product with images
+            Product product = articleService.createProduct(productDTO, storeId, currentUser, imageUrls);
+            return ResponseEntity.status(HttpStatus.CREATED).body(product);
+
+        } catch (Exception e) {
+            // Log the error
+            System.out.println("Failed to create product: " + e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create product: " + e.getMessage());
+        }
+    }
+
+
+
+    @Operation(
+            summary = "Rechercher et filtrer des articles",
+            description = "Recherche des articles par nom ou description avec pagination"
+    )
+    @GetMapping
+    public ResponseEntity<Page<Product>> getStoreArticles(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Terme de recherche")
+            @RequestParam(required = false) String search,
+
+            @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable,
+
+            Authentication authentication) {
+
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Store store = articleService.getStoreById(storeId, currentUser);
+
+        // Si un terme de recherche est fourni, utilisez-le pour filtrer les résultats
+        Page<Product> articles;
+        if (search != null && !search.trim().isEmpty()) {
+            articles = productRepository.findByStoreAndNameContainingIgnoreCase(store, search.trim(), pageable);
+        } else {
+            articles = productRepository.findByStore(store, pageable);
+        }
+
+        return ResponseEntity.ok(articles);
+    }
+
+    @Operation(
+            summary = "Get article by ID",
+            description = "Retrieves a specific article by its ID"
+    )
+    @GetMapping("/{articleId}")
+    public ResponseEntity<Product> getArticle(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Article ID", required = true)
+            @PathVariable Long articleId,
+
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Product article = articleService.getArticleById(articleId, currentUser);
+        return ResponseEntity.ok(article);
+    }
+
+    @Operation(
+            summary = "Update an article",
+            description = "Updates an existing article. Requires store manager permissions."
+    )
+    @PutMapping("/{articleId}")
+    public ResponseEntity<Product> updateArticle(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Article ID", required = true)
+            @PathVariable Long articleId,
+
+            @Parameter(description = "Updated article data", required = true)
+            @Valid @RequestBody ProductDTO articleDTO,
+
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Product article = articleService.updateArticle(articleId, articleDTO, currentUser);
+        return ResponseEntity.ok(article);
+    }
+
+    @Operation(
+            summary = "Delete an article",
+            description = "Deletes an article. Requires store manager permissions."
+    )
+    @DeleteMapping("/{articleId}")
+    public ResponseEntity<Void> deleteArticle(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Article ID", required = true)
+            @PathVariable Long articleId,
+
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        articleService.deleteArticle(articleId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Publish an article",
+            description = "Publishes an article. Requires store manager permissions."
+    )
+    @PostMapping("/{articleId}/publish")
+    public ResponseEntity<Product> publishArticle(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Article ID", required = true)
+            @PathVariable Long articleId,
+
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Product article = articleService.publishProduct(articleId, currentUser);
+        return ResponseEntity.ok(article);
+    }
+
+    @Operation(
+            summary = "Unpublish an article",
+            description = "Unpublishes an article. Requires store manager permissions."
+    )
+    @PostMapping("/{articleId}/unpublish")
+    public ResponseEntity<Product> unpublishArticle(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+
+            @Parameter(description = "Article ID", required = true)
+            @PathVariable Long articleId,
+
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Product article = articleService.unpublishProduct(articleId, currentUser);
+        return ResponseEntity.ok(article);
+    }
+
+    @GetMapping("/count/active")
+    public long getActiveProductsCount(
+            @PathVariable Long storeId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        return articleService.getActiveProductsCount(storeId, currentUser);
+    }
+
+
+
+
+    @GetMapping("/recent")
+    public List<Product> getRecentProducts(@RequestParam int limit) {
+        return articleService.getRecentProducts(limit);
+    }
+
+    @PostMapping(value = "/variants", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createVariants(
+            @PathVariable Long storeId,
+            @RequestParam("productId") Long productId,
+            @RequestParam("variant") String variantJson,
+            @RequestPart(value = "images[]", required = false) MultipartFile[] images,
+            Authentication authentication) {
+        try {
+            Users currentUser = userService.getUserByUsername(authentication.getName());
+            Product product = articleService.getArticleById(productId, currentUser);
+            if (product == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product not found");
+            }
+            VariantDTO variantDTO = new ObjectMapper().readValue(variantJson, new TypeReference<>() {
+            });
+
+            List<String> imageUrls = new ArrayList<>();
+
+            if (images != null) {
+                for (MultipartFile image : images) {
+                    try {
+                        if (!image.isEmpty()) {
+                            String imageUrl = s3Service.uploadFile(image);
+                            imageUrls.add(imageUrl);
+                        }
+                    } catch (IOException e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("Failed to upload image: " + e.getMessage());
+                    }
+                }
+            }
+
+
+            ProductVariant variant = articleService.createVariant(variantDTO, product.getStore(), productId, variantDTO.getName(), imageUrls, currentUser);
+
+
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(variant);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create variants: " + e.getMessage());
+        }
+}
+
+    @DeleteMapping("/variants/{variantId}")
+    public ResponseEntity<Void> deleteVariant(
+            @PathVariable Long storeId,
+            @PathVariable Long variantId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        articleService.deleteVariant(variantId, storeId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/v2")
+    public ResponseEntity<Product> createProduct(@RequestBody Product product) {
+        try {
+            Product saved = articleService.createProduct(product);
+            return ResponseEntity.ok(saved);
+        } catch (ValidationException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (DuplicateSkuException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @PostMapping(value = "/v3", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Product> createProduct(
+            @PathVariable String storeId,
+            @RequestPart(value = "data") String productDtoJson,
+            @RequestPart(value = "productImages", required = false) List<MultipartFile> productImages,
+            @RequestPart(value = "variantImages", required = false) List<MultipartFile> variantImages
+    ) {
+        try {
+            // Convertir le JSON en CreateProductDto
+            ObjectMapper mapper = new ObjectMapper();
+            CreateProductDto productDto = mapper.readValue(productDtoJson, CreateProductDto.class);
+
+            // Upload product images
+            List<String> productImageUrls = new ArrayList<>();
+            if (productImages != null) {
+                for (MultipartFile image : productImages) {
+                    try {
+                        if (!image.isEmpty()) {
+                            String imageUrl = s3Service.uploadFile(image);
+                            productImageUrls.add(imageUrl);
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to upload product image: " + e.getMessage());
+                    }
+                }
+            }
+            productDto.imageUrls = productImageUrls.toArray(new String[0]);
+            //log.info("Processing product images" + productDto.toString());
+            // Upload variant images if any
+            if (productDto.variants != null && variantImages != null) {
+                //log.info("Processing variant images" + variantImages.size());
+                int currentImageIndex = 0;
+                for (VariantDTO variant : productDto.variants) {
+                    List<String> variantImageUrls = new ArrayList<>();
+                    // Get the number of images for this variant from the metadata
+                    int imageCount = 0; // Default to 0 or another appropriate default
+                    String originalFilename = variantImages.get(currentImageIndex).getOriginalFilename();
+                    String newFileName = variantImages.get(currentImageIndex).getName();
+                    log.info("Processing variant images" + newFileName);
+                    // Try to extract a numeric count if possible
+                    try {
+                        // Option 1: If using a specific naming convention like "1_filename.jpg"
+                        if (newFileName.contains("_")) {
+                            imageCount = Integer.parseInt(newFileName.split("_")[0]);
+                        }
+                        // Option 2: Generate a sequential count based on current index
+                        else {
+                            imageCount = currentImageIndex + 1;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Fallback to using the current index
+                        imageCount = currentImageIndex + 1;
+
+                        // Optional: Log the filename parsing issue
+                        log.warn("Could not parse image count from filename: " + originalFilename);
+                    }
+                    //log.info("Processing variant images" + imageCount + " " + currentImageIndex + " " + variantImages.size());
+                    // Process images for this variant
+                    for (int i = 0; i < imageCount && currentImageIndex < variantImages.size(); i++) {
+                        log.info("Processing image: " + variantImages.get(currentImageIndex).getOriginalFilename());
+                        MultipartFile image = variantImages.get(currentImageIndex++);
+                        try {
+                            if (!image.isEmpty()) {
+                                String imageUrl = s3Service.uploadFile(image);
+                                variantImageUrls.add(imageUrl);
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to upload variant image: " + e.getMessage());
+                        }
+                    }
+
+                    variant.setImages(variantImageUrls);
+                }
+            }
+
+            Product saved = articleService.createProduct(productDto, Long.parseLong(storeId));
+            return ResponseEntity.ok(saved);
+
+        } catch (ValidationException e) {
+            log.error("Failed to create product: " + e.getMessage());
+            throw new RuntimeException("Failed to create product: " + e.getMessage());
+        } catch (DuplicateSkuException e) {
+            throw new RuntimeException(e);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to parse product data: " + e.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create product: " + e.getMessage() + e.getClass() + Arrays.toString(e.getStackTrace()));
+        }
+    }
+}
+
+================
+File: Controller/CategoryController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.CategoryDTO;
+import com.olatech.shopxauthservice.Model.Category;
+import com.olatech.shopxauthservice.Repository.CategoryRepository;
+import com.olatech.shopxauthservice.Service.CategoryImportService;
+import com.olatech.shopxauthservice.Service.CategoryService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/categories")
+public class CategoryController {
+
+    @Autowired
+    private CategoryImportService categoryImportService;
+
+    @Autowired
+    private CategoryService categoryService;
+
+
+    @PostMapping("/import")
+    public ResponseEntity<?> importCategories(@RequestParam("file") MultipartFile file) {
+        try {
+            String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+            categoryImportService.parseCsvAndImport(content);
+            return ResponseEntity.ok().body("Categories imported successfully");
+        } catch (IOException e) {
+            return ResponseEntity.badRequest().body("Error reading file: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error importing categories: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/tree")
+    public ResponseEntity<List<CategoryDTO>> getCategoryTree() {
+        return ResponseEntity.ok(categoryService.getCategoryTree());
+    }
+
+
+}
+
+================
+File: Controller/CollectionController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.CollectionDTO;
+import com.olatech.shopxauthservice.Model.Collection;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.CollectionService;
+import com.olatech.shopxauthservice.Service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/stores/{storeId}/collections")
+@Tag(name = "Collections", description = "Collection management APIs")
+public class CollectionController {
+
+    @Autowired
+    private CollectionService collectionService;
+
+    @Autowired
+    private UserService userService;
+
+    @Operation(
+            summary = "Create a new collection",
+            description = "Creates a new collection in the specified store. Requires store manager permissions."
+    )
+    @PostMapping
+    public ResponseEntity<Collection> createCollection(
+            @PathVariable Long storeId,
+            @Valid @RequestBody CollectionDTO collectionDTO,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        collectionDTO.setStoreId(storeId);
+        Collection collection = collectionService.createCollection(collectionDTO, currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(collection);
+    }
+
+    @Operation(
+            summary = "Get all collections",
+            description = "Retrieves all collections for the specified store"
+    )
+    @GetMapping
+    public ResponseEntity<List<Collection>> getStoreCollections(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        List<Collection> collections = collectionService.getStoreCollections(storeId, currentUser);
+        return ResponseEntity.ok(collections);
+    }
+
+    @Operation(
+            summary = "Get collection by ID",
+            description = "Retrieves a specific collection by its ID"
+    )
+    @GetMapping("/{collectionId}")
+    public ResponseEntity<Collection> getCollection(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+            @Parameter(description = "Collection ID", required = true)
+            @PathVariable Long collectionId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Collection collection = collectionService.getCollectionById(collectionId, currentUser);
+        return ResponseEntity.ok(collection);
+    }
+
+    @Operation(
+            summary = "Update a collection",
+            description = "Updates an existing collection. Requires store manager permissions."
+    )
+    @PutMapping("/{collectionId}")
+    public ResponseEntity<Collection> updateCollection(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+            @Parameter(description = "Collection ID", required = true)
+            @PathVariable Long collectionId,
+            @Valid @RequestBody CollectionDTO collectionDTO,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Collection collection = collectionService.updateCollection(collectionId, collectionDTO, currentUser);
+        return ResponseEntity.ok(collection);
+    }
+
+    @Operation(
+            summary = "Delete a collection",
+            description = "Deletes a collection. Requires store manager permissions."
+    )
+    @DeleteMapping("/{collectionId}")
+    public ResponseEntity<Void> deleteCollection(
+            @Parameter(description = "Store ID", required = true)
+            @PathVariable Long storeId,
+            @Parameter(description = "Collection ID", required = true)
+            @PathVariable Long collectionId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        collectionService.deleteCollection(collectionId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+}
+
+================
+File: Controller/ProductTypeController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+
+import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
+import com.olatech.shopxauthservice.Model.ProductType;
+import com.olatech.shopxauthservice.Service.Product.ProductTypeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/{storeID}/product-type")
+@Tag(name = "Product Type", description = "Product Type API")
+public class ProductTypeController {
+    @Autowired
+    private ProductTypeService productTypeService;
+
+    @RequestMapping("/all")
+    @Operation(summary = "Get all product types", description = "Get all product types")
+    public ResponseEntity<List<ProductTypeDTO>> getAllProductTypes() {
+        return ResponseEntity.ok(productTypeService.getAllProductTypes());
+    }
+
+    @RequestMapping("/{id}")
+    @Operation(summary = "Récupérer un type de produit par son ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Type de produit trouvé"),
+            @ApiResponse(responseCode = "404", description = "Type de produit non trouvé"),
+            @ApiResponse(responseCode = "500", description = "Erreur interne du serveur")
+    })
+    public ResponseEntity<ProductTypeDTO> getProductTypeById(
+            @Parameter(description = "Product type id")
+            @PathVariable Long id
+    ) {
+
+        return ResponseEntity.ok(productTypeService.getProductTypeById(id));
+    }
+}
+
+================
+File: Controller/SessionsController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.LoginResponse;
+import com.olatech.shopxauthservice.DTO.RefreshTokenResponse;
+import com.olatech.shopxauthservice.Model.Sessions;
+import com.olatech.shopxauthservice.Model.UserPrincipal;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.JWTService;
+import com.olatech.shopxauthservice.Service.SessionService;
+import com.olatech.shopxauthservice.Service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@CrossOrigin
+public class SessionsController {
+
+    @Autowired
+    private SessionService sessionService;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private JWTService jwtService;
+
+    @GetMapping("/sessions")
+    public List<Sessions> getAllSessions(Authentication authentication) {
+
+        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+        return sessionService.getAllSessionsByUserId(user.getUser());
+
+    }
+
+    @PostMapping("/refresh")
+    public RefreshTokenResponse refreshToken(@RequestBody String token) throws Exception {
+        try {
+            System.out.println("token" + token);
+            String username = jwtService.extractUserName(token);
+            if (username == null) {
+                return null;
+            }
+
+            Users user = userService.getUserByUsername(username);
+            if (user == null) {
+                return null;
+            }
+
+            String newToken = jwtService.generateToken(user);
+            return new RefreshTokenResponse(newToken);
+        }
+        catch (Exception e) {
+            System.out.println("Error refreshing token" + e.getMessage());
+            return null;
+        }
+    }
+}
+
+================
+File: Controller/StoreController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.StoreService;
+import com.olatech.shopxauthservice.DTO.StoreDTO;
+import com.olatech.shopxauthservice.Service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import java.util.List;
+
+@RestController
+public class StoreController {
+
+    @Autowired
+    private StoreService storeService;
+    @Autowired
+    private UserService userService;
+
+    @PostMapping("/api/stores")
+    public ResponseEntity<Store> createStore(@Valid @RequestBody StoreDTO storeDTO, Authentication authentication) {
+        try {
+            Users currentUser = userService.getUserByUsername(authentication.getName());
+            Store store = storeService.createStore(storeDTO, currentUser);
+            return ResponseEntity.ok(store);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            return ResponseEntity.ok().build();
+        }
+    }
+
+    @GetMapping("/api/stores")
+    public ResponseEntity<List<Store>> getUserStores(Authentication authentication) {
+
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        List<Store> stores = storeService.getUserStores(currentUser);
+        return ResponseEntity.ok(stores);
+    }
+
+    @GetMapping("/api/stores/{storeId}")
+    public ResponseEntity<Store> getStore(@PathVariable Long storeId, Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Store store = storeService.getStoreById(storeId, currentUser);
+        return ResponseEntity.ok(store);
+    }
+
+    @PutMapping("/api/stores/{storeId}")
+    public ResponseEntity<Store> updateStore(
+            @PathVariable Long storeId,
+            @Valid @RequestBody StoreDTO storeDTO,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        Store store = storeService.updateStore(storeId, storeDTO, currentUser);
+        return ResponseEntity.ok(store);
+    }
+
+    @DeleteMapping("/api/stores/{storeId}")
+    public ResponseEntity<?> deleteStore(@PathVariable Long storeId, Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        storeService.deleteStore(storeId, currentUser);
+        return ResponseEntity.ok().build();
+    }
+}
+
+================
+File: Controller/StoreInvitationController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.InvitationDTO;
+import com.olatech.shopxauthservice.Model.StoreInvitation;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.StoreInvitationService;
+import com.olatech.shopxauthservice.Service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+// StoreInvitationController.java
+@RestController
+@RequestMapping("/api/stores/{storeId}/invitations")
+public class StoreInvitationController {
+
+    @Autowired
+    private StoreInvitationService invitationService;
+
+    @Autowired
+    private UserService userService;
+
+    @PostMapping
+    public ResponseEntity<StoreInvitation> createInvitation(
+            @PathVariable Long storeId,
+            @Valid @RequestBody InvitationDTO invitationDTO,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        StoreInvitation invitation = invitationService.createInvitation(storeId, invitationDTO, currentUser);
+        return ResponseEntity.ok(invitation);
+    }
+
+    @GetMapping("/pending")
+    public ResponseEntity<List<StoreInvitation>> getPendingInvitations(
+            @PathVariable Long storeId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        List<StoreInvitation> invitations = invitationService.getPendingInvitations(storeId, currentUser);
+        return ResponseEntity.ok(invitations);
+    }
+
+
+}
+
+================
+File: Controller/StoreStaffController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.StoreStaffDTO;
+import com.olatech.shopxauthservice.DTO.UpdateRoleDTO;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.StoreStaffService;
+import com.olatech.shopxauthservice.Service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+// StoreStaffController.java
+@RestController
+@RequestMapping("/api/stores/{storeId}/staff")
+public class StoreStaffController {
+
+    @Autowired
+    private StoreStaffService staffService;
+
+    @Autowired
+    private UserService userService;
+
+    @GetMapping
+    public ResponseEntity<List<StoreStaffDTO>> getStoreStaff(
+            @PathVariable Long storeId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        List<StoreStaffDTO> staff = staffService.getStoreStaff(storeId, currentUser);
+        return ResponseEntity.ok(staff);
+    }
+
+    @PutMapping("/{userId}/role")
+    public ResponseEntity<?> updateStaffRole(
+            @PathVariable Long storeId,
+            @PathVariable int userId,
+            @Valid @RequestBody UpdateRoleDTO roleDTO,
+            Authentication authentication) {
+        Users currentUser = (Users) authentication.getPrincipal();
+        staffService.updateStaffRole(storeId, userId, roleDTO.getRole(), currentUser);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<?> removeStaffMember(
+            @PathVariable Long storeId,
+            @PathVariable int userId,
+            Authentication authentication) {
+        Users currentUser = (Users) authentication.getPrincipal();
+        staffService.removeStoreStaff(storeId, userId, currentUser);
+        return ResponseEntity.ok().build();
+    }
+}
+
+================
+File: Controller/UsersController.java
+================
+package com.olatech.shopxauthservice.Controller;
+
+import com.olatech.shopxauthservice.DTO.LoginBody;
+import com.olatech.shopxauthservice.DTO.LoginResponse;
+import com.olatech.shopxauthservice.Model.Sessions;
+import com.olatech.shopxauthservice.Model.StoreInvitation;
+import com.olatech.shopxauthservice.Model.UserPrincipal;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Service.JWTService;
+import com.olatech.shopxauthservice.Service.SessionService;
+import com.olatech.shopxauthservice.Service.StoreInvitationService;
+import com.olatech.shopxauthservice.Service.UserService;
+import com.olatech.shopxauthservice.exceptions.UserAlreadyExistsException;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@CrossOrigin
+public class UsersController {
+
+    @Autowired
+    private AuthenticationManager authManager;
+
+    @Autowired
+    UserService userService;
+
+    @Autowired
+    SessionService sessionService;
+
+    @Autowired
+    JWTService jwtService;
+
+    private final OAuth2AuthorizedClientService clientService;
+
+    @Autowired
+    public UsersController(OAuth2AuthorizedClientService clientService) {
+        this.clientService = clientService;
+    }
+
+    @Autowired
+    private StoreInvitationService invitationService;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> createUser(@RequestBody Users user) {
+        try {
+            Users createdUser = userService.register(user);
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    Map.of(
+                            "status", "success",
+                            "message", "User created successfully",
+                            "data", createdUser
+                    )
+            );
+        } catch (UserAlreadyExistsException e) {
+            // Gestion des conflits (HTTP 409 Conflict)
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    Map.of(
+                            "status", "error",
+                            "message", e.getMessage(),
+                            "field", e.getField()
+                    )
+            );
+        } catch (Exception e) {
+            // Gestion des erreurs internes (HTTP 500)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    Map.of(
+                            "status", "error",
+                            "message", e.getMessage()
+                    )
+            );
+        }
+    }
+
+
+    @PostMapping("/login")
+    public ResponseEntity<?>
+    login(@Valid @RequestBody LoginBody user) throws Exception {
+        try{
+            String identifier;
+
+            // Résolution dynamique de l'identifiant en fonction du mode
+            switch (user.getMode()) {
+                case "email":
+                    if (user.getEmail() == null || user.getEmail().isBlank()) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Email is required for email login mode"));
+                    }
+                    identifier = user.getEmail();
+                    break;
+                case "username":
+                default:
+                    if (user.getUsername() == null || user.getUsername().isBlank()) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Username is required for username login mode"));
+                    }
+                    identifier = user.getUsername();
+                    break;
+            }
+
+            Authentication authentication = authManager.authenticate(new UsernamePasswordAuthenticationToken(identifier, user.getPassword()));
+
+            Sessions session = new Sessions();
+
+
+            if (authentication.getPrincipal() instanceof UserPrincipal userPrincipal) {
+                System.out.println("User found: " + userPrincipal.getUsername() + " " + userPrincipal.getUser().getUsername());
+                String token = jwtService.generateRefreshToken(userPrincipal.getUsername());
+                session.setUser(userPrincipal.getUser());
+                session.setRefreshToken(token);
+                session.setExpiresAt(jwtService.extractExpiration(token));
+                sessionService.createSession(session);
+            }
+
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    new LoginResponse(userService.verifyUser(userPrincipal.getUser()),
+                            session.getRefreshToken())
+            );
+        }
+        catch (Exception e) {
+            System.out.println("User not authenticated  n " + e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    Map.of(
+                            "status", "error",
+                            "message", e.getMessage()
+                    )
+            );
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity me(Authentication authentication) {
+    System.out.println(authentication.getPrincipal());
+
+        //print the type of authentication
+
+        System.out.println(authentication.getPrincipal().getClass().getName());
+
+        if (authentication.getPrincipal() instanceof UserPrincipal user) {
+            return ResponseEntity.ok(user);
+        }
+
+        if (authentication.getPrincipal() instanceof OAuth2User) {
+            OAuth2User user = (OAuth2User) authentication.getPrincipal();
+            return ResponseEntity.ok(user.getAttributes());
+        }
+        return  ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                Map.of(
+                        "status", "error",
+                        "message", "User not found"
+                )
+        );
+    }
+
+    @GetMapping("/")
+    public String home(Authentication authentication) {
+
+        return  "'Welcome to the home page " + authentication.getName();
+    }
+
+    @GetMapping("/logi/oauth2/code/provider")
+    public LoginResponse loginSuccess(@PathVariable String provider, OAuth2AuthenticationToken authenticationToken) {
+        System.out.println(("ejduue"));
+        System.out.println("User found: " + authenticationToken.getPrincipal().getAttributes());
+        OAuth2AuthorizedClient client = clientService.loadAuthorizedClient(
+                authenticationToken.getAuthorizedClientRegistrationId(),
+                authenticationToken.getName()
+        );
+
+        // Handle storing the user information and token, then redirect to a successful login page
+        // For example, store user details in your database and generate a JWT token for further authentication.
+        System.out.println("User foundii: " + client.getPrincipalName());
+        return new LoginResponse(null, client.getAccessToken().getTokenValue());
+    }
+
+    @GetMapping("/invitations")
+    public ResponseEntity getInvitations(Authentication authentication){
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        List<StoreInvitation> invitations = invitationService.getInvitationsByUser(currentUser.getEmail());
+        return ResponseEntity.ok(invitations);
+    }
+
+    @PostMapping("/api/invitations/{invitationId}/accept")
+    public ResponseEntity<?> acceptInvitation(
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        invitationService.acceptInvitation(invitationId, currentUser);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/api/invitations/{invitationId}/reject")
+    public ResponseEntity<?> rejectInvitation(
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+        Users currentUser = userService.getUserByUsername(authentication.getName());
+        invitationService.rejectInvitation(invitationId, currentUser);
+        return ResponseEntity.ok().build();
+    }
+}
+
+================
+File: DTO/Product/CreateProductDto.java
+================
+package com.olatech.shopxauthservice.DTO.Product;
+
+
+import com.olatech.shopxauthservice.DTO.VariantDTO;
+
+import java.math.BigDecimal;
+import java.util.Arrays;
+
+public class CreateProductDto {
+    public String sku;
+    public String name;
+    public String slug;
+    public String description;
+    public Long categoryId;
+    public Long storeId;
+    public BigDecimal basePrice;
+    public BigDecimal salePrice;
+    public boolean active;
+    public boolean manageStock;
+    public Integer stockThreshold;
+    public Long productTypeId;
+    public String[] fieldNames;
+    public String[] fieldValues;
+    public boolean hasVariants;
+    public VariantDTO[] variants;
+    public String[] imageUrls;
+    public String[] tags;
+    public String[] categories;
+
+    public String toString() {
+        return "CreateProductDto{" +
+                "sku='" + sku + '\'' +
+                ", name='" + name + '\'' +
+                ", slug='" + slug + '\'' +
+                ", description='" + description + '\'' +
+                ", categoryId=" + categoryId +
+                ", storeId=" + storeId +
+                ", basePrice=" + basePrice +
+                ", salePrice=" + salePrice +
+                ", active=" + active +
+                ", manageStock=" + manageStock +
+                ", stockThreshold=" + stockThreshold +
+                ", productTypeId=" + productTypeId +
+                ", fieldNames=" + Arrays.toString(fieldNames) +
+                ", fieldValues=" + Arrays.toString(fieldValues) +
+                ", hasVariants=" + hasVariants +
+                ", variants=" + Arrays.toString(variants) +
+                ", imageUrls=" + Arrays.toString(imageUrls) +
+                ", tags=" + Arrays.toString(tags) +
+                ", categories=" + Arrays.toString(categories) +
+                '}';
+    }
+}
+
+================
+File: DTO/Product/ProductFieldDefinitionDTO.java
+================
+package com.olatech.shopxauthservice.DTO.Product;
+
+import lombok.Data;
+
+@Data
+public class ProductFieldDefinitionDTO {
+    private Long id;
+    private String fieldName;
+    private String fieldType;
+    private boolean required;
+    private int orderPosition;
+    private String regex;
+    private String minValue;
+    private String maxValue;
+    private boolean multipleValues;
+}
+
+================
+File: DTO/Product/ProductTypeDTO.java
+================
+package com.olatech.shopxauthservice.DTO.Product;
+
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class ProductTypeDTO {
+    private Long id;
+    private String name;
+    private String slug;
+    private List<ProductFieldDefinitionDTO> fields;
+
+    public ProductTypeDTO() {
+    }
+
+    public ProductTypeDTO(Long id, String name, String slug) {
+        this.id = id;
+        this.name = name;
+        this.slug = slug;
+    }
+}
+
+================
+File: DTO/CategoryDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.Category;
+import lombok.Data;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Data
+public class CategoryDTO {
+    private Long id;
+    private Long parentId;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public Boolean getActive() {
+        return isActive;
+    }
+
+    public void setActive(Boolean active) {
+        isActive = active;
+    }
+
+    public List<CategoryDTO> getChildren() {
+        return children;
+    }
+
+    public void setChildren(List<CategoryDTO> children) {
+        this.children = children;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
+    private String name;
+    private String slug;
+    private String description;
+    private Boolean isActive;
+    private List<CategoryDTO> children;
+
+    public static CategoryDTO fromEntity(Category category) {
+        CategoryDTO dto = new CategoryDTO();
+        dto.setId(category.getId());
+        dto.setName(category.getName());
+        dto.setSlug(category.getSlug());
+        dto.setDescription(category.getDescription());
+        dto.setIsActive(category.isActive());
+
+        if (category.getSubcategories() != null && !category.getSubcategories().isEmpty()) {
+            dto.setChildren(category.getSubcategories().stream()
+                    .map(CategoryDTO::fromEntity)
+                    .collect(Collectors.toList()));
+        }
+
+        return dto;
+    }
+}
+
+================
+File: DTO/CollectionDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.util.Set;
+
+public class CollectionDTO {
+    @NotBlank(message = "Collection name is required")
+    private String name;
+
+    private String description;
+
+    @NotNull(message = "Store ID is required")
+    private Long storeId;
+
+    private Set<Long> productIds;
+
+    // Getters and Setters
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Long getStoreId() {
+        return storeId;
+    }
+
+    public void setStoreId(Long storeId) {
+        this.storeId = storeId;
+    }
+
+    public Set<Long> getProductIds() {
+        return productIds;
+    }
+
+    public void setProductIds(Set<Long> productIds) {
+        this.productIds = productIds;
+    }
+}
+
+================
+File: DTO/InvitationDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.StoreRole;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+// InvitationDTO.java
+public class InvitationDTO {
+    @NotBlank
+    @Email
+    private String email;
+
+    @NotNull
+    private StoreRole.StoreRoleType role;
+
+    // Getters and Setters
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public StoreRole.StoreRoleType getRole() {
+        return role;
+    }
+
+    public void setRole(StoreRole.StoreRoleType role) {
+        this.role = role;
+    }
+
+    @Override
+    public String toString() {
+        return "InvitationDTO{" +
+                "email='" + email + '\'' +
+                ", role=" + role +
+                '}';
+    }
+
+}
+
+================
+File: DTO/LoginBody.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.Users;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Component;
+import jakarta.validation.constraints.NotBlank;
+
+import jakarta.validation.constraints.NotBlank;
+
+public class LoginBody {
+
+    private String username;
+    private String email;
+    private String phone;
+
+    @NotBlank(message = "Password cannot be empty")
+    private String password;
+
+    private String mode = "email"; // Valeur par défaut
+
+    // Constructeur par défaut
+    public LoginBody() {}
+
+    // Getters et setters
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+}
+
+================
+File: DTO/LoginResponse.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+public class LoginResponse {
+
+    public LoginResponse(String accessToken, String refreshToken) {
+        this.refreshToken = new RefreshTokenResponse(refreshToken);
+        this.accessToken = new RefreshTokenResponse(accessToken);
+    }
+
+    public RefreshTokenResponse refreshToken;
+
+    public RefreshTokenResponse accessToken ;
+}
+
+================
+File: DTO/ProductDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+public class ProductDTO {
+    private String name;
+    private String slug;
+    private String description;
+    private Long categoryId;
+    private boolean manageStock;
+    private int stockThreshold;
+    private Set<String> tags;
+    private double basePrice;
+    private double salePrice;
+    private List<MultipartFile> images;
+
+    public List<MultipartFile> getImages() {
+        return images;
+    }
+
+    public void setImages(List<MultipartFile> images) {
+        this.images = images;
+    }
+
+    public ProductDTO() {
+    }
+
+    public ProductDTO(String name, String slug, String description, Long categoryId, boolean manageStock, int stockThreshold, String tags, double basePrice, double salePrice) {
+        this.name = name;
+        this.slug = slug;
+        this.description = description;
+        this.categoryId = categoryId;
+        this.manageStock = manageStock;
+        this.stockThreshold = stockThreshold;
+        this.tags = Collections.singleton(tags);
+        this.basePrice = basePrice;
+        this.salePrice = salePrice;
+    }
+
+
+    // Getters existants
+    public String getName() {
+        return name;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Long getCategoryId() {
+        return categoryId;
+    }
+
+    public BigDecimal getBasePrice() {
+        return BigDecimal.valueOf(basePrice);
+    }
+
+    public BigDecimal getSalePrice() {
+        return BigDecimal.valueOf(salePrice);
+    }
+
+    public boolean isManageStock() {
+        return manageStock;
+    }
+
+    public int getStockThreshold() {
+        return stockThreshold;
+    }
+
+    public Set<String> getTags() {
+        return tags;
+    }
+
+
+    // Nouveaux setters
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setCategoryId(Long categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public void setBasePrice(BigDecimal basePrice) {
+        this.basePrice = basePrice != null ? basePrice.doubleValue() : 0.0;
+    }
+
+    public void setSalePrice(BigDecimal salePrice) {
+        this.salePrice = salePrice != null ? salePrice.doubleValue() : 0.0;
+    }
+
+    public void setManageStock(boolean manageStock) {
+        this.manageStock = manageStock;
+    }
+
+    public void setStockThreshold(int stockThreshold) {
+        this.stockThreshold = stockThreshold;
+    }
+
+    public void setTags(Set<String> tags) {
+        this.tags = tags;
+    }
+
+    @Override
+    public String toString() {
+        return "ProductDTO{" +
+                "name='" + name + '\'' +
+                ", slug='" + slug + '\'' +
+                ", description='" + description + '\'' +
+                ", categoryId=" + categoryId +
+                ", manageStock=" + manageStock +
+                ", stockThreshold=" + stockThreshold +
+                ", tags=" + tags +
+                ", basePrice=" + basePrice +
+                ", salePrice=" + salePrice +
+                ", images=" + (images != null ? images.size() : "null") +
+                '}';
+    }
+}
+
+================
+File: DTO/RefreshTokenResponse.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Service.JWTService;
+
+import java.util.Date;
+
+public class RefreshTokenResponse {
+
+    public String token;
+    public Date expiry ;
+
+    private JWTService jwtService = new JWTService();
+
+
+    public RefreshTokenResponse(String token) {
+        this.token = token;
+        this.expiry = jwtService.extractExpiration(token);
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
+    public Date getExpiry() {
+        return expiry;
+    }
+
+    public void setExpiry(Date expiry) {
+        this.expiry = expiry;
+    }
+}
+
+================
+File: DTO/RegisterBody.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+public class RegisterBody {
+    public String username = "";
+    public String password = "";
+    public String email = "";
+    public String phone = "";
+
+    public RegisterBody(String username, String password, String email, String phone, String role){
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.phone = phone;
+    }
+}
+
+================
+File: DTO/StoreDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.StoreRole;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import java.time.LocalDateTime;
+
+public class StoreDTO {
+    @NotBlank
+    @Size(min = 3, max = 100)
+    private String name;
+
+    @Size(max = 500)
+    private String description;
+
+    private String logo;
+
+    // Champs Facebook
+    private String facebookBusinessId;
+    private String facebookCatalogId;
+    private String facebookToken;
+
+    // Getters and Setters
+
+    public @NotBlank @Size(min = 3, max = 100) String getName() {
+        return name;
+    }
+
+    public void setName(@NotBlank @Size(min = 3, max = 100) String name) {
+        this.name = name;
+    }
+
+    public @Size(max = 500) String getDescription() {
+        return description;
+    }
+
+    public void setDescription(@Size(max = 500) String description) {
+        this.description = description;
+    }
+
+    public String getLogo() {
+        return logo;
+    }
+
+    public void setLogo(String logo) {
+        this.logo = logo;
+    }
+
+    public String getFacebookBusinessId() {
+        return facebookBusinessId;
+    }
+
+    public void setFacebookBusinessId(String facebookBusinessId) {
+        this.facebookBusinessId = facebookBusinessId;
+    }
+
+    public String getFacebookCatalogId() {
+        return facebookCatalogId;
+    }
+
+    public void setFacebookCatalogId(String facebookCatalogId) {
+        this.facebookCatalogId = facebookCatalogId;
+    }
+
+    public String getFacebookToken() {
+        return facebookToken;
+    }
+
+    public void setFacebookToken(String facebookToken) {
+        this.facebookToken = facebookToken;
+    }
+}
+
+================
+File: DTO/StoreStaffDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.StoreRole;
+
+import java.time.LocalDateTime;
+
+// StoreStaffDTO.java
+public class StoreStaffDTO {
+    private int userId;
+    private String username;
+    private String email;
+    private StoreRole.StoreRoleType role;
+    private LocalDateTime joinedAt;
+
+    // Getters and Setters
+
+
+    public int getUserId() {
+        return userId;
+    }
+
+    public void setUserId(int userId) {
+        this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public StoreRole.StoreRoleType getRole() {
+        return role;
+    }
+
+    public void setRole(StoreRole.StoreRoleType role) {
+        this.role = role;
+    }
+
+    public LocalDateTime getJoinedAt() {
+        return joinedAt;
+    }
+
+    public void setJoinedAt(LocalDateTime joinedAt) {
+        this.joinedAt = joinedAt;
+    }
+}
+
+================
+File: DTO/UpdateRoleDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import com.olatech.shopxauthservice.Model.StoreRole;
+import jakarta.validation.constraints.NotNull;
+
+// UpdateRoleDTO.java
+public class UpdateRoleDTO {
+    @NotNull
+    private StoreRole.StoreRoleType role;
+
+    // Getters and Setters
+
+    public @NotNull StoreRole.StoreRoleType getRole() {
+        return role;
+    }
+
+    public void setRole(@NotNull StoreRole.StoreRoleType role) {
+        this.role = role;
+    }
+}
+
+================
+File: DTO/VariantDTO.java
+================
+package com.olatech.shopxauthservice.DTO;
+
+import java.util.List;
+import java.util.Map;
+
+public class VariantDTO {
+    private Long productId;
+    private String name;
+    private String basePrice;
+    private String salePrice;
+    private boolean manageStock;
+    private Integer stockThreshold;
+    private boolean isActive;
+    private Map<String, String> attributes;
+    private List<String> images;
+    public Long getProductId() {
+        return productId;
+    }
+
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getSalePrice() {
+        return salePrice;
+    }
+
+    public void setSalePrice(String salePrice) {
+        this.salePrice = salePrice;
+    }
+
+    public String getBasePrice() {
+        return basePrice;
+    }
+
+    public void setBasePrice(String basePrice) {
+        this.basePrice = basePrice;
+    }
+
+    public boolean isManageStock() {
+        return manageStock;
+    }
+
+    public void setManageStock(boolean manageStock) {
+        this.manageStock = manageStock;
+    }
+
+    public Integer getStockThreshold() {
+        return stockThreshold;
+    }
+
+    public void setStockThreshold(Integer stockThreshold) {
+        this.stockThreshold = stockThreshold;
+    }
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public Map<String, String> getAttributes() {
+        return attributes;
+    }
+
+    public void setAttributes(Map<String, String> attributes) {
+        this.attributes = attributes;
+    }
+
+    public Map<String, String> getOptionValues() {
+        return attributes;
+    }
+
+    public Boolean getManageStock() {
+        return manageStock;
+    }
+    public void setImages(List<String> images) {  // Changed from setImageUrls to setImages
+        this.images = images;
+    }
+    public List<String> getImages() {  // Changed from getImageUrls to getImages
+        return images;
+    }
+}
+
+================
+File: exceptions/DuplicateSkuException.java
+================
+package com.olatech.shopxauthservice.exceptions;
+
+public class DuplicateSkuException extends Throwable {
+    public DuplicateSkuException(Object p0) {
+    }
+
+
+}
+
+================
+File: exceptions/ErrorResponse.java
+================
+package com.olatech.shopxauthservice.exceptions;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+@Data
+@AllArgsConstructor
+public class ErrorResponse {
+    private int status;
+    private String message;
+    private long timestamp;
+}
+
+================
+File: exceptions/GlobalExceptionHandler.java
+================
+package com.olatech.shopxauthservice.exceptions;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                ex.getMessage(),
+                System.currentTimeMillis()
+        );
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Une erreur interne s'est produite",
+                System.currentTimeMillis()
+        );
+        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+================
+File: exceptions/ResourceNotFoundException.java
+================
+package com.olatech.shopxauthservice.exceptions;
+
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+================
+File: exceptions/UnauthorizedException.java
+================
+package com.olatech.shopxauthservice.exceptions;
+
+// UnauthorizedException.java
+public class UnauthorizedException extends RuntimeException {
+    public UnauthorizedException(String message) {
+        super(message);
+    }
+}
+
+================
+File: exceptions/UserAlreadyExistsException.java
+================
+package com.olatech.shopxauthservice.exceptions;
+
+public class UserAlreadyExistsException extends RuntimeException {
+    private final String field;
+    private final String message;
+
+    public UserAlreadyExistsException(String field, String message) {
+        super(message);
+        this.field = field;
+        this.message = message;
+    }
+
+    public String getField() {
+        return field;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+}
+
+================
+File: Mapper/Product/ProductTypeMapper.java
+================
+package com.olatech.shopxauthservice.Mapper.Product;
+
+import com.olatech.shopxauthservice.DTO.Product.ProductFieldDefinitionDTO;
+import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
+import com.olatech.shopxauthservice.Model.ProductFieldDefinition;
+import com.olatech.shopxauthservice.Model.ProductType;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
+import java.util.List;
+
+@Mapper(componentModel = "spring")
+public interface ProductTypeMapper {
+    @Mapping(source = "fields", target = "fields")
+    ProductTypeDTO toDTO(ProductType productType);
+    List<ProductTypeDTO> toDTOs(List<ProductType> productTypes);
+
+    ProductFieldDefinitionDTO toDTO(ProductFieldDefinition fieldDefinition);
+}
+
+================
+File: Mapper/ProductMapper.java
+================
+package com.olatech.shopxauthservice.Mapper;
+
+import com.olatech.shopxauthservice.DTO.Product.CreateProductDto;
+import com.olatech.shopxauthservice.DTO.VariantDTO;
+import com.olatech.shopxauthservice.Model.*;
+import org.mapstruct.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+        imports = {LocalDateTime.class})
+public interface ProductMapper {
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "sku", source = "sku")
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "slug", source = "slug")
+    @Mapping(target = "description", source = "description")
+    @Mapping(target = "basePrice", source = "basePrice")
+    @Mapping(target = "salePrice", source = "salePrice")
+    @Mapping(target = "active", source = "active")
+    @Mapping(target = "manageStock", source = "manageStock")
+    @Mapping(target = "stockThreshold", source = "stockThreshold")
+    @Mapping(target = "hasVariants", source = "hasVariants")
+    @Mapping(target = "fieldValues", expression = "java(mapFieldValues(dto))")
+    @Mapping(target = "images", expression = "java(mapImages(dto.imageUrls))")
+    @Mapping(target = "variants", expression = "java(mapVariants(dto.variants))")
+    @Mapping(target = "tags", expression = "java(mapTags(dto.tags))")
+    @Mapping(target = "createdAt", expression = "java(LocalDateTime.now())")
+    @Mapping(target = "updatedAt", expression = "java(LocalDateTime.now())")
+    Product toEntity(CreateProductDto dto);
+
+    @Named("mapFieldValues")
+    default Set<ProductFieldValue> mapFieldValues(CreateProductDto dto) {
+        if (dto.fieldNames == null || dto.fieldValues == null) {
+            return new HashSet<>();
+        }
+
+        return IntStream.range(0, dto.fieldNames.length)
+                .mapToObj(i -> {
+                    ProductFieldValue fieldValue = new ProductFieldValue();
+                    fieldValue.setFieldName(dto.fieldNames[i]);
+                    fieldValue.setValue(dto.fieldValues[i]);
+                    return fieldValue;
+                })
+                .collect(Collectors.toSet());
+    }
+
+    @Named("mapImages")
+    default List<ProductImage> mapImages(String[] imageUrls) {
+        if (imageUrls == null) {
+            return new ArrayList<>();
+        }
+
+        return Arrays.stream(imageUrls)
+                .map(url -> {
+                    ProductImage image = new ProductImage();
+                    image.setImageUrl(url);
+                    return image;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Named("mapVariants")
+    default Set<ProductVariant> mapVariants(VariantDTO[] variantDTOs) {
+        if (variantDTOs == null) {
+            return new HashSet<>();
+        }
+
+        return Arrays.stream(variantDTOs)
+                .map(dto -> {
+                    ProductVariant variant = new ProductVariant();
+                    variant.setName(dto.getName());
+                    variant.setBasePrice(new BigDecimal(dto.getBasePrice()));
+                    variant.setSalePrice(new BigDecimal(dto.getSalePrice()));
+                    variant.setManageStock(dto.getManageStock());
+                    variant.setStockThreshold(dto.getStockThreshold());
+                    variant.setActive(dto.isActive());
+                    variant.setOptionValues(dto.getOptionValues());
+                    variant.setCreatedAt(LocalDateTime.now());
+
+                    // Map variant images using getImages() instead of getImageUrls()
+                    if (dto.getImages() != null) {
+                        variant.setImages(dto.getImages().stream()
+                                .map(url -> {
+                                    VariantImage image = new VariantImage();
+                                    image.setImageUrl(url);
+                                    image.setVariant(variant);
+                                    return image;
+                                })
+                                .collect(Collectors.toList()));
+                    } else {
+                        variant.setImages(new ArrayList<>());
+                    }
+
+                    return variant;
+                })
+                .collect(Collectors.toSet());
+    }
+    @Named("mapTags")
+    default Set<String> mapTags(String[] tags) {
+        if (tags == null) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(Arrays.asList(tags));
+    }
+
+    @AfterMapping
+    default void establishRelationships(@MappingTarget Product product) {
+        // Set bidirectional relationships for field values
+        product.getFieldValues().forEach(fieldValue -> fieldValue.setProduct(product));
+
+        // Set bidirectional relationships for images
+        product.getImages().forEach(image -> image.setProduct(product));
+
+        // Set bidirectional relationships for variants
+        product.getVariants().forEach(variant -> {
+            variant.setProduct(product);
+            variant.getImages().forEach(image -> image.setVariant(variant));
+        });
+    }
+}
+
+================
+File: Model/shared/HistoryProductMethod.java
+================
+package com.olatech.shopxauthservice.Model.shared;
+
+public enum HistoryProductMethod {
+    CREATE,
+    UPDATE,
+    DELETE
+}
+
+================
+File: Model/shared/HistoryProductStore.java
+================
+package com.olatech.shopxauthservice.Model.shared;
+
+import java.time.LocalDateTime;
+
+import com.olatech.shopxauthservice.Model.Product;
+import jakarta.persistence.*;
+
+
+@Entity
+@Table(schema = "sync-catalog")
+public class HistoryProductStore {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "history_product_store_id_seq", sequenceName = "history_product_store_id_seq", allocationSize = 1 ,schema = "sync-catalog")
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+    @Column(name = "store_id", nullable = false)
+    private Long storeId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true)
+    private HistoryProductMethod method;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private SyncStatus syncStatus;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = true)
+    private LocalDateTime syncedAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Product getProduct() {
+        return product;
+    }
+
+    public void setProduct(Product product) {
+        this.product = product;
+    }
+
+    public Long getStoreId() {
+        return storeId;
+    }
+
+    public void setStoreId(Long storeId) {
+        this.storeId = storeId;
+    }
+
+    public HistoryProductMethod getMethod() {
+        return method;
+    }
+
+    public void setMethod(HistoryProductMethod method) {
+        this.method = method;
+    }
+
+    public SyncStatus getSyncStatus() {
+        return syncStatus;
+    }
+
+    public void setSyncStatus(SyncStatus syncStatus) {
+        this.syncStatus = syncStatus;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+}
+
+================
+File: Model/shared/SyncStatus.java
+================
+package com.olatech.shopxauthservice.Model.shared;
+
+public enum SyncStatus {
+    PENDING,
+    SYNCED,
+    FAILED,
+    NOT_SYNCED,
+    DELETED
+}
+
+================
+File: Model/AttributeDefinition.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+public class AttributeDefinition {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "attribute_sequence", sequenceName = "attribute_sequence", allocationSize = 1)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
+    @Column(nullable = false)
+    private String name;  // e.g., "color", "size"
+
+    @ElementCollection
+    @CollectionTable(name = "attribute_values")
+    private Set<String> possibleValues = new HashSet<>();  // e.g., ["S", "M", "L", "XL"] for size
+
+    private boolean isRequired;
+    private String displayType;  // e.g., "select", "radio", "color_swatch"
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}
+
+================
+File: Model/Category.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.*;
+
+@Entity
+public class Category {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "category_sequence", sequenceName = "category_sequence", allocationSize = 1)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true, nullable = false)
+    private String slug;
+
+    private String description;
+
+    @ManyToOne
+    @JoinColumn(name = "parent_id")
+    private Category parent;
+
+    @OneToMany(mappedBy = "parent")
+    private Set<Category> subcategories = new HashSet<>();
+
+    @OneToMany(mappedBy = "category", fetch = FetchType.LAZY)
+    private Set<Product> products = new HashSet<>();
+
+
+    private boolean isActive = true;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public Set<Product> getProducts() {
+        return products;
+    }
+
+    public void setProducts(Set<Product> products) {
+        this.products = products;
+    }
+
+    public Set<Category> getSubcategories() {
+        return subcategories;
+    }
+
+    public void setSubcategories(Set<Category> subcategories) {
+        this.subcategories = subcategories;
+    }
+
+    public Category getParent() {
+        return parent;
+    }
+
+    public void setParent(Category parent) {
+        this.parent = parent;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+
+================
+File: Model/Collection.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import jakarta.persistence.*;
+import java.util.HashSet;
+import java.util.Set;
+import java.time.LocalDateTime;
+
+@Entity
+public class Collection {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "collection_sequence", sequenceName = "collection_sequence", allocationSize = 1)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id", nullable = false)
+    @JsonIgnore
+    private Store store;
+
+    @ManyToMany
+    @JoinTable(
+            name = "collection_products",
+            joinColumns = @JoinColumn(name = "collection_id"),
+            inverseJoinColumns = @JoinColumn(name = "product_id")
+    )
+    @JsonIgnoreProperties("collections")
+    private Set<Product> products = new HashSet<>();
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Store getStore() {
+        return store;
+    }
+
+    public void setStore(Store store) {
+        this.store = store;
+    }
+
+    public Set<Product> getProducts() {
+        return products;
+    }
+
+    public void setProducts(Set<Product> products) {
+        this.products = products;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+}
+
+================
+File: Model/Currency.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+
+
+public class Currency {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "currency_sequence", sequenceName = "currency_sequence", allocationSize = 1)
+    private Long id;
+
+    @Column(nullable = false, length = 3)
+    private String code;  // ISO 4217 currency code (e.g., USD, EUR, XOF)
+
+    @Column(nullable = false)
+    private String name;  // Full name of the currency
+
+    private String symbol;  // Currency symbol (e.g., $, €, CFA)
+
+    @Column(precision = 10, scale = 4)
+    private BigDecimal exchangeRate;  // Exchange rate relative to base currency
+
+    private boolean isBaseCurrency = false;
+    private boolean isActive = true;
+
+    @ManyToOne
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
+    private LocalDateTime lastUpdated;
+}
+
+================
+File: Model/Product.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
+import jakarta.annotation.Nullable;
+import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@
+        Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "product_sequence", sequenceName = "product_sequence", allocationSize = 1)
+    private Long id;
+
+    @Column(nullable = true, unique = true)
+    private String sku;
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true, nullable = false)
+    private String slug;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @ManyToOne
+    @Nullable
+    @JoinColumn(name = "category_id")
+    private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
+
+    @Column(nullable = false, precision = 20, scale = 2)
+    private BigDecimal basePrice;
+
+    @Column(precision = 20, scale = 2)
+    private BigDecimal salePrice;
+
+    private boolean isActive = true;
+    private boolean manageStock = true;
+    private Integer stockThreshold;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"fields"})
+    private ProductType productType;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ProductFieldValue> fieldValues = new HashSet<>();
+
+    //a enlever
+    @Transient
+    private boolean hasVariants = false;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ProductVariant> variants = new HashSet<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductImage> images = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "product_tags")
+    private Set<String> tags = new HashSet<>();
+
+    @ManyToMany(mappedBy = "products", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private Set<Collection> collections = new HashSet<>();
+
+    // Ajouter getter et setter pour collections
+    public Set<Collection> getCollections() {
+        return collections;
+    }
+
+    public void setCollections(Set<Collection> collections) {
+        this.collections = collections;
+    }
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public List<ProductImage> getImages() {
+        return images;
+    }
+
+    public void setImages(List<ProductImage> images) {
+        this.images = images;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Set<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(Set<String> tags) {
+        this.tags = tags;
+    }
+
+    public Set<ProductVariant> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(Set<ProductVariant> variants) {
+        this.variants = variants;
+    }
+
+    public Integer getStockThreshold() {
+        return stockThreshold;
+    }
+
+    public void setStockThreshold(Integer stockThreshold) {
+        this.stockThreshold = stockThreshold;
+    }
+
+    public boolean isManageStock() {
+        return manageStock;
+    }
+
+    public void setManageStock(boolean manageStock) {
+        this.manageStock = manageStock;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public BigDecimal getSalePrice() {
+        return salePrice;
+    }
+
+    public void setSalePrice(BigDecimal salePrice) {
+        this.salePrice = salePrice;
+    }
+
+    public BigDecimal getBasePrice() {
+        return basePrice;
+    }
+
+    public void setBasePrice(BigDecimal basePrice) {
+        this.basePrice = basePrice;
+    }
+
+
+    public Store getStore() {
+        return store;
+    }
+
+    public void setStore(Store store) {
+        this.store = store;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
+
+    public void setCategory(Category category) {
+        this.category = category;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+
+    public ProductType getProductType() {
+        return productType;
+    }
+
+    public void setProductType(ProductType productType) {
+        this.productType = productType;
+    }
+
+    public String getSku() {
+        return sku;
+    }
+
+    public void setSku(String sku) {
+        this.sku = sku;
+    }
+
+    public boolean HasVariants() {
+        return hasVariants;
+    }
+
+    public void setHasVariants(boolean hasVariants) {
+        this.hasVariants = hasVariants;
+    }
+
+    public Set<ProductFieldValue> getFieldValues() {
+        return fieldValues;
+    }
+
+    public void setFieldValues(Set<ProductFieldValue> fieldValues) {
+        this.fieldValues = fieldValues;
+    }
+
+    @JsonProperty("productType")
+    public ProductTypeDTO getProductTypeInfo() {
+        if (productType == null) return null;
+        return new ProductTypeDTO(productType.getId(), productType.getName(), productType.getSlug());
+    }
+}
+
+================
+File: Model/ProductFieldDefinition.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+
+@Entity
+@Table(name = "product_field_definitions")
+@Data
+public class ProductFieldDefinition {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "product_type_id", nullable = false)
+    private ProductType productType;
+
+    @Column(nullable = false)
+    private String fieldName;
+
+    @Column(nullable = false)
+    private String fieldType;  // TEXT, NUMBER, DATE, etc.
+
+    private boolean required;
+
+    @Column(nullable = false)
+    private int orderPosition;
+
+    // Validation rules
+    private String regex;  // Regex pattern si nécessaire
+    private String minValue;  // Pour les nombres
+    private String maxValue;  // Pour les nombres
+    private boolean multipleValues;  // Si plusieurs valeurs sont permises
+}
+
+================
+File: Model/ProductFieldValue.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
+import lombok.Data;
+
+@Entity
+@Table(name = "product_field_values")
+@Data
+public class ProductFieldValue {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
+    private Product product;
+    private String fieldName;
+    private String value;
+}
+
+================
+File: Model/ProductImage.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+public class ProductImage {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "image_sequence", sequenceName = "image_sequence", allocationSize = 1)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+    @Column(nullable = false)
+    private String url;
+
+    private String altText;
+    private boolean isPrimary;
+    private int sortOrder;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public String getImgUrl() {
+        return url;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.url = imageUrl;
+    }
+
+
+    public void setProduct(Product product) {
+        this.product = product;
+    }
+
+    public String toString() {
+        return "ProductImage{" +
+                "id=" + id +
+                ", product=" + product +
+                ", url='" + url + '\'' +
+                ", altText='" + altText + '\'' +
+                ", isPrimary=" + isPrimary +
+                ", sortOrder=" + sortOrder +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                '}';
+    }
+}
+
+================
+File: Model/ProductType.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+
+import java.util.List;
+
+@Entity
+@Table(name = "product_types")
+@Data
+public class ProductType {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true, nullable = false)
+    private String slug;
+
+    @OneToMany(mappedBy = "productType")
+    private List<ProductFieldDefinition> fields;
+}
+
+================
+File: Model/ProductVariant.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Entity
+public class ProductVariant {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "variant_sequence", sequenceName = "variant_sequence", allocationSize = 1)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+    private String name;
+
+    @Column(precision = 20, scale = 2)
+    private BigDecimal basePrice;
+
+    @Column(precision = 20, scale = 2)
+    private BigDecimal salePrice;
+
+    private Boolean manageStock;
+    private Integer stockThreshold;
+
+
+    @ElementCollection
+    @CollectionTable(name = "variant_values")
+    @MapKeyColumn(name = "option_name")
+    @Column(name = "option_value")
+    private Map<String, String> optionValues = new HashMap<>();
+
+
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VariantImage> images = new ArrayList<>();
+
+
+    private boolean isActive = true;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Product getProduct() {
+        return product;
+    }
+
+    public void setProduct(Product product) {
+        this.product = product;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public BigDecimal getBasePrice() {
+        return basePrice;
+    }
+
+    public void setBasePrice(BigDecimal basePrice) {
+        this.basePrice = basePrice;
+    }
+
+    public BigDecimal getSalePrice() {
+        return salePrice;
+    }
+
+    public void setSalePrice(BigDecimal salePrice) {
+        this.salePrice = salePrice;
+    }
+
+    public Boolean getManageStock() {
+        return manageStock;
+    }
+
+    public void setManageStock(Boolean manageStock) {
+        this.manageStock = manageStock;
+    }
+
+    public Integer getStockThreshold() {
+        return stockThreshold;
+    }
+
+    public void setStockThreshold(Integer stockThreshold) {
+        this.stockThreshold = stockThreshold;
+    }
+
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public List<VariantImage> getImages() {
+        return images;
+    }
+
+    public void setImages(List<VariantImage> images) {
+        this.images = images;
+    }
+
+    public void addImage(VariantImage image) {
+        images.add(image);
+    }
+
+    public Map<String, String> getOptionValues() {
+        return optionValues;
+    }
+
+    public void setOptionValues(Map<String, String> optionValues) {
+        this.optionValues = optionValues;
+    }
+
+    public String toString() {
+        return "ProductVariant{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", basePrice=" + basePrice +
+                ", salePrice=" + salePrice +
+                ", manageStock=" + manageStock +
+                ", stockThreshold=" + stockThreshold +
+                ", optionValues=" + optionValues +
+                ", images=" + images +
+                ", isActive=" + isActive +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                '}';
+    }
+}
+
+================
+File: Model/Sessions.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.util.Date;
+
+@Entity
+public class Sessions {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(
+            name = "user_id"
+    )
+    private Users user;
+
+    private String refreshToken;
+
+    @CreationTimestamp
+    private Date createdAt;
+
+    @UpdateTimestamp
+    private Date updatedAt;
+
+
+    public Users getUser() {
+        return user;
+    }
+
+    public void setUser(Users user) {
+        this.user = user;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
+
+    public Date getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Date createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Date getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Date updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    private Date expiresAt;
+
+    public Date getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Date expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+}
+
+================
+File: Model/Store.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import jakarta.persistence.*;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+public class Store {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "store_sequence", sequenceName = "store_sequence", allocationSize = 1)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true)
+    private String slug;
+
+    private String description;
+
+    private String logo;
+
+    private boolean isActive = true;
+
+    @ManyToOne
+    @JoinColumn(name = "owner_id", nullable = false)
+    private Users owner;
+
+    @ManyToMany
+    @JoinTable(
+            name = "store_staff",
+            joinColumns = @JoinColumn(name = "store_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    private Set<Users> staff = new HashSet<>();
+
+    @OneToMany(mappedBy = "store", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference
+    private Set<StoreRole> userRoles = new HashSet<>();
+
+    private String facebookBusinessId;
+    private String facebookCatalogId;
+    @Column(length = 512)  // Token Facebook peut être long
+    private String facebookToken;
+
+    // Getters and Setters
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getLogo() {
+        return logo;
+    }
+
+    public void setLogo(String logo) {
+        this.logo = logo;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public Users getOwner() {
+        return owner;
+    }
+
+    public void setOwner(Users owner) {
+        this.owner = owner;
+    }
+
+    public Set<Users> getStaff() {
+        return staff;
+    }
+
+    public void setStaff(Set<Users> staff) {
+        this.staff = staff;
+    }
+
+    public Set<StoreRole> getUserRoles() {
+        return userRoles;
+    }
+
+    public void setUserRoles(Set<StoreRole> userRoles) {
+        this.userRoles = userRoles;
+    }
+
+    public String getFacebookBusinessId() {
+        return facebookBusinessId;
+    }
+
+    public void setFacebookBusinessId(String facebookBusinessId) {
+        this.facebookBusinessId = facebookBusinessId;
+    }
+
+    public String getFacebookCatalogId() {
+        return facebookCatalogId;
+    }
+
+    public void setFacebookCatalogId(String facebookCatalogId) {
+        this.facebookCatalogId = facebookCatalogId;
+    }
+
+    public String getFacebookToken() {
+        return facebookToken;
+    }
+
+    public void setFacebookToken(String facebookToken) {
+        this.facebookToken = facebookToken;
+    }
+}
+
+================
+File: Model/StoreInvitation.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
+
+@Entity
+public class StoreInvitation {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "store_invitation_sequence", sequenceName = "store_invitation_sequence", allocationSize = 1)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
+    @Email
+    @NotNull
+    @Column(nullable = false)
+    private String email;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private StoreRole.StoreRoleType role;
+
+    @ManyToOne
+    @JoinColumn(name = "inviter_id", nullable = false)
+    private Users inviter;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime expiresAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InvitationStatus status = InvitationStatus.PENDING;
+
+    public enum InvitationStatus {
+        PENDING,    // Invitation envoyée, en attente de réponse
+        ACCEPTED,   // Invitation acceptée par l'utilisateur
+        DECLINED,   // Invitation refusée par l'utilisateur
+        EXPIRED,    // Invitation expirée (délai dépassé)
+        CANCELLED   // Invitation annulée par l'inviteur
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        if (expiresAt == null) {
+            expiresAt = createdAt.plusDays(7); // Expiration par défaut après 7 jours
+        }
+    }
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Store getStore() {
+        return store;
+    }
+
+    public void setStore(Store store) {
+        this.store = store;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public StoreRole.StoreRoleType getRole() {
+        return role;
+    }
+
+    public void setRole(StoreRole.StoreRoleType role) {
+        this.role = role;
+    }
+
+    public Users getInviter() {
+        return inviter;
+    }
+
+    public void setInviter(Users inviter) {
+        this.inviter = inviter;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(LocalDateTime expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public InvitationStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(InvitationStatus status) {
+        this.status = status;
+    }
+
+    @Override
+    public String toString() {
+        return "StoreInvitation{" +
+                "id=" + id +
+                ", store=" + store.getName() +
+                ", email='" + email + '\'' +
+                ", role=" + role +
+                ", status=" + status +
+                ", createdAt=" + createdAt +
+                ", expiresAt=" + expiresAt +
+                '}';
+    }
+}
+
+================
+File: Model/StoreRole.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import jakarta.persistence.*;
+
+@Entity
+public class StoreRole {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "store_id")
+    @JsonBackReference
+    private Store store;
+
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private Users user;
+
+    @Enumerated(EnumType.STRING)
+    private StoreRoleType role;
+
+    public void setUserId(int userId) {
+        this.user = new Users();
+        this.user.setId(userId);
+    }
+
+    public enum StoreRoleType {
+        OWNER,
+        ADMIN,
+        MANAGER,
+        STAFF
+    }
+
+    // Getters and Setters
+
+    public Store getStore() {
+        return store;
+    }
+
+    public void setStore(Store store) {
+        this.store = store;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Users getUser() {
+        return user;
+    }
+
+    public void setUser(Users user) {
+        this.user = user;
+    }
+
+    public StoreRoleType getRole() {
+        return role;
+    }
+
+    public void setRole(StoreRoleType role) {
+        this.role = role;
+    }
+}
+
+================
+File: Model/UserPrincipal.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+public class UserPrincipal implements UserDetails {
+
+    private Users user;
+
+    public Users getUser() {
+        return user;
+    }
+
+    public UserPrincipal(Users user) {
+        this.user = user;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singleton(new SimpleGrantedAuthority("USER"));
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getUsername();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+}
+
+================
+File: Model/Users.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.Collection;
+
+@Entity
+public class Users {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "user_sequence", sequenceName = "user_sequence", allocationSize = 1)
+    private int id;
+
+    @Column(unique=true)
+    private String username;
+
+    private String password;
+
+    @Email
+    @NotNull
+    private String email;
+
+    private String provider = "local";
+
+    private String firstName;
+
+    private String lastName;
+
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    @Column(unique=true)
+    public @Email String getEmail() {
+        return email;
+    }
+
+    public void setEmail(@Email String email) {
+        this.email = email;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    @OneToMany(mappedBy = "user")
+    private Collection<Sessions> sessions;
+
+    @Override
+    public String toString() {
+        return "Users{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                ", password='" + password + '\'' +
+                '}';
+    }
+}
+
+================
+File: Model/VariantFieldDefinition.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "variant_field_definitions")
+@Data
+public class VariantFieldDefinition {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "product_type_id", nullable = false)
+    private ProductType productType;
+
+    @Column(nullable = false)
+    private String optionName;
+
+    private boolean required;
+
+    @Column(nullable = false)
+    private int orderPosition;
+
+    // Valeurs autorisées
+    @ElementCollection
+    @CollectionTable(name = "variant_field_allowed_values")
+    @Column(name = "allowed_value")
+    private Set<String> allowedValues = new HashSet<>();
+}
+
+================
+File: Model/VariantImage.java
+================
+package com.olatech.shopxauthservice.Model;
+
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+public class VariantImage {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "image_sequence", sequenceName = "image_sequence", allocationSize = 1)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "variant_id", nullable = false)
+    private ProductVariant variant;
+
+    @Column(nullable = false)
+    private String url;
+
+    private String altText;
+    private boolean isPrimary;
+    private int sortOrder;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public String getImgUrl() {
+        return url;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.url = imageUrl;
+    }
+
+    public void setVariant(ProductVariant variant) {
+        this.variant = variant;
+    }
+}
+
+================
+File: Repository/CategoryRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Category;
+import com.olatech.shopxauthservice.Model.Store;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface CategoryRepository extends JpaRepository<Category, Long> {
+    Optional<Category> findBySlug(String slug);
+
+    @Query("SELECT c FROM Category c WHERE c.parent IS NULL")
+    List<Category> findAllRootCategories();
+
+    List<Category> findByParentId(Long parentId);
+
+    boolean existsBySlug(String slug);
+
+    @Query("SELECT DISTINCT c FROM Category c " +
+            "LEFT JOIN FETCH c.subcategories s " +
+            "LEFT JOIN FETCH s.subcategories " +
+            "WHERE c.parent IS NULL " +
+            "ORDER BY c.id")
+    List<Category> findAllRootCategoriesWithSubcategories();
+
+    @Query(value = """
+        WITH RECURSIVE CategoryHierarchy AS (
+            -- Sélectionner les catégories racines
+            SELECT c.*, 0 as level
+            FROM category c
+            WHERE c.parent_id IS NULL
+            
+            UNION ALL
+            
+            -- Sélectionner récursivement les sous-catégories
+            SELECT child.*, ch.level + 1
+            FROM category child
+            INNER JOIN CategoryHierarchy ch ON child.parent_id = ch.id
+        )
+        SELECT *
+        FROM CategoryHierarchy
+        ORDER BY level, id
+        """,
+            nativeQuery = true)
+    List<Category> findAllWithHierarchy();
+
+}
+
+================
+File: Repository/CollectionRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Collection;
+import com.olatech.shopxauthservice.Model.Store;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface CollectionRepository extends JpaRepository<Collection, Long> {
+    List<Collection> findByStore(Store store);
+    List<Collection> findByStoreId(Long storeId);
+}
+
+================
+File: Repository/HistoryProductStoreRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.shared.HistoryProductStore;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface HistoryProductStoreRepository extends JpaRepository<HistoryProductStore, Long> {
+}
+
+================
+File: Repository/ProductFieldDefinitionRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.ProductFieldDefinition;
+import com.olatech.shopxauthservice.Model.ProductType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ProductFieldDefinitionRepository extends JpaRepository<ProductFieldDefinition, Long> {
+    List<ProductFieldDefinition> findByProductType(ProductType type);
+    List<ProductFieldDefinition> findByProductTypeAndRequiredTrue(ProductType type);
+    List<ProductFieldDefinition> findByProductTypeOrderByOrderPosition(ProductType type);
+}
+
+================
+File: Repository/ProductFieldValueRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Product;
+import com.olatech.shopxauthservice.Model.ProductFieldValue;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ProductFieldValueRepository extends JpaRepository<ProductFieldValue, Long> {
+    List<ProductFieldValue> findByProduct(Product product);
+    void deleteByProduct(Product product);
+}
+
+================
+File: Repository/ProductRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Product;
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.Category;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    Page<Product> findByStore(Store store, Pageable pageable);
+    List<Product> findByStore(Store store);
+    List<Product> findByCategory(Category category);
+    Optional<Product> findBySlugAndStore(String slug, Store store);
+    List<Product> findByIsActiveAndStore(boolean isActive, Store store);
+    boolean existsBySlugAndStore(String slug, Store store);
+
+    long countByStoreAndIsActive(Store store, boolean b);
+
+    boolean existsBySku(String sku);
+
+
+    Page<Product> findByStoreAndNameContainingIgnoreCase(Store store, String searchTerm, Pageable pageable);
+
+}
+
+================
+File: Repository/ProductTypeRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.ProductType;
+import com.olatech.shopxauthservice.Model.Store;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ProductTypeRepository extends JpaRepository<ProductType, Long> {
+
+}
+
+================
+File: Repository/ProductVariantRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Product;
+import com.olatech.shopxauthservice.Model.ProductVariant;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ProductVariantRepository extends JpaRepository<ProductVariant, Long> {
+    List<ProductVariant> findByProduct(Product product);
+}
+
+================
+File: Repository/SessionRepo.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Sessions;
+import com.olatech.shopxauthservice.Model.Users;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface SessionRepo extends JpaRepository<Sessions, Long> {
+    List<Sessions> findByUser(Users user);
+}
+
+================
+File: Repository/StoreInvitationRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.StoreInvitation;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface StoreInvitationRepository extends JpaRepository<StoreInvitation, Long> {
+    List<StoreInvitation> findByStoreAndStatus(Store store, StoreInvitation.InvitationStatus status);
+    Optional<StoreInvitation> findByStoreAndEmail(Store store, String email);
+
+    List<StoreInvitation> findByEmail(String email);
+}
+
+================
+File: Repository/StoreRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface StoreRepository extends JpaRepository<Store, Long> {
+    List<Store> findByOwnerOrStaffContaining(Users owner, Users staff);
+}
+
+================
+File: Repository/StoreRoleRepository.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+// StoreRoleRepository.java
+public interface StoreRoleRepository extends JpaRepository<StoreRole, Long> {
+    Optional<StoreRole> findByStoreAndUser(Store store, Users user);
+    Optional<StoreRole> findByStoreAndUser_Id(Store store, int user);
+    List<StoreRole> findByUser(Users user);
+}
+
+================
+File: Repository/UserRepo.java
+================
+package com.olatech.shopxauthservice.Repository;
+
+import com.olatech.shopxauthservice.Model.Users;
+import jakarta.validation.constraints.Email;
+import org.springframework.context.annotation.Bean;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+
+public interface UserRepo extends JpaRepository <Users, Long> {
+
+    Optional<Users> findByUsername(String username);
+
+    Optional<Users> findByEmail(@Email String email);
+
+    boolean existsByEmail(@Email String email);
+
+    boolean existsByUsername(String username);
+}
+
+================
+File: Service/Product/ProductTypeService.java
+================
+package com.olatech.shopxauthservice.Service.Product;
+
+import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
+import com.olatech.shopxauthservice.Mapper.Product.ProductTypeMapper;
+import com.olatech.shopxauthservice.Model.ProductType;
+import com.olatech.shopxauthservice.Repository.ProductTypeRepository;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ProductTypeService {
+    @Autowired
+    private ProductTypeRepository productTypeRepository;
+
+    @Autowired
+    private ProductTypeMapper productTypeMapper;
+
+    public List<ProductTypeDTO> getAllProductTypes() {
+        List<ProductType> productTypes = productTypeRepository.findAll();
+        return productTypeMapper.toDTOs(productTypes);
+    }
+
+    public ProductTypeDTO getProductTypeById(Long id) {
+        ProductType productType = productTypeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Type de produit non trouvé avec l'id : " + id));
+        return productTypeMapper.toDTO(productType);
+    }
+
+    public ProductType getProductTypeById1(Long id) {
+        return productTypeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Type de produit non trouvé avec l'id : " + id));
+    }
+
+}
+
+================
+File: Service/CategoryImportService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.Category;
+import com.olatech.shopxauthservice.Repository.CategoryRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.*;
+
+@Service
+public class CategoryImportService {
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Transactional
+    public void importCategories(List<CategoryData> categoryDataList) {
+        Map<String, Category> categoryCache = new HashMap<>();
+
+        for (CategoryData data : categoryDataList) {
+            String[] hierarchy = data.getPath().split(" > ");
+            String currentPath = "";
+            Category parentCategory = null;
+
+            for (String categoryName : hierarchy) {
+                currentPath = currentPath.isEmpty() ? categoryName : currentPath + " > " + categoryName;
+
+                if (!categoryCache.containsKey(currentPath)) {
+                    String uniqueSlug = generateUniqueSlug(categoryName);
+
+                    Category category = new Category();
+                    category.setName(categoryName);
+                    category.setSlug(uniqueSlug);
+                    category.setActive(true);
+                    category.setCreatedAt(LocalDateTime.now());
+                    category.setUpdatedAt(LocalDateTime.now());
+                    category.setParent(parentCategory);
+
+                    categoryRepository.save(category);
+                    categoryCache.put(currentPath, category);
+                }
+
+                parentCategory = categoryCache.get(currentPath);
+            }
+        }
+    }
+
+    private String generateUniqueSlug(String name) {
+        String baseSlug = name.toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-");
+
+        String finalSlug = baseSlug;
+        int counter = 1;
+
+        while (categoryRepository.existsBySlug(finalSlug)) {
+            finalSlug = baseSlug + "-" + counter;
+            counter++;
+        }
+
+        return finalSlug;
+    }
+
+    public static class CategoryData {
+        private Long categoryId;
+        private String path;
+
+        public CategoryData(Long categoryId, String path) {
+            this.categoryId = categoryId;
+            this.path = path;
+        }
+
+        public Long getCategoryId() {
+            return categoryId;
+        }
+
+        public String getPath() {
+            return path;
+        }
+    }
+
+    @Transactional
+    public void parseCsvAndImport(String csvContent) {
+        List<CategoryData> categories = new ArrayList<>();
+
+        String[] lines = csvContent.split("\n");
+        for (String line : lines) {
+            if (line.trim().isEmpty()) continue;
+
+            String[] parts = line.split(",", 2);
+            if (parts.length != 2) continue;
+
+            try {
+                Long categoryId = Long.parseLong(parts[0]);
+                String path = parts[1].trim();
+                categories.add(new CategoryData(categoryId, path));
+            } catch (NumberFormatException e) {
+                // Skip header or invalid lines
+                continue;
+            }
+        }
+
+        importCategories(categories);
+    }
+}
+
+================
+File: Service/CategorySearchService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+public class CategorySearchService {
+}
+
+================
+File: Service/CategoryService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.Category;
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.CategoryRepository;
+import com.olatech.shopxauthservice.DTO.CategoryDTO;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class CategoryService {
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private StoreService storeService;
+
+    @Transactional
+    public Category createCategory(CategoryDTO categoryDTO, Users user) {
+        Category category = new Category();
+        category.setName(categoryDTO.getName());
+        category.setSlug(categoryDTO.getSlug());
+        category.setDescription(categoryDTO.getDescription());
+
+        if (categoryDTO.getParentId() != null) {
+            Category parent = categoryRepository.findById(categoryDTO.getParentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent category not found"));
+            category.setParent(parent);
+        }
+
+        return categoryRepository.save(category);
+    }
+
+
+    public Category getCategoryById(Long categoryId, Users user) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        return category;
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<CategoryDTO> getCategoryTree() {
+        List<Category> allCategories = categoryRepository.findAllWithHierarchy();
+        Map<Long, CategoryDTO> dtoMap = new HashMap<>();
+        List<CategoryDTO> roots = new ArrayList<>();
+
+        // Convertir toutes les catégories en DTO
+        for (Category category : allCategories) {
+            CategoryDTO dto = new CategoryDTO();
+            dto.setId(category.getId());
+            dto.setName(category.getName());
+            dto.setSlug(category.getSlug());
+            dto.setDescription(category.getDescription());
+            dto.setIsActive(category.isActive());
+            dto.setChildren(new ArrayList<>());
+            dtoMap.put(dto.getId(), dto);
+        }
+
+        // Construire l'arbre
+        for (Category category : allCategories) {
+            CategoryDTO dto = dtoMap.get(category.getId());
+            if (category.getParent() == null) {
+                roots.add(dto);
+            } else {
+                CategoryDTO parentDto = dtoMap.get(category.getParent().getId());
+                if (parentDto != null) {
+                    parentDto.getChildren().add(dto);
+                }
+            }
+        }
+
+        return roots;
+    }
+}
+
+================
+File: Service/CollectionService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.DTO.CollectionDTO;
+import com.olatech.shopxauthservice.Model.*;
+import com.olatech.shopxauthservice.Repository.CollectionRepository;
+import com.olatech.shopxauthservice.Repository.ProductRepository;
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+public class CollectionService {
+
+    @Autowired
+    private CollectionRepository collectionRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private StoreService storeService;
+
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+
+    @Transactional
+    public Collection createCollection(CollectionDTO collectionDTO, Users currentUser) {
+        Store store = storeService.getStoreById(collectionDTO.getStoreId(), currentUser);
+
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to create collection");
+        }
+
+        Collection collection = new Collection();
+        collection.setName(collectionDTO.getName());
+        collection.setDescription(collectionDTO.getDescription());
+        collection.setStore(store);
+        collection.setCreatedAt(LocalDateTime.now());
+        collection.setUpdatedAt(LocalDateTime.now());
+
+        if (collectionDTO.getProductIds() != null && !collectionDTO.getProductIds().isEmpty()) {
+            Set<Product> products = collectionDTO.getProductIds().stream()
+                    .map(id -> productRepository.findById(id)
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id)))
+                    .collect(Collectors.toSet());
+            collection.setProducts(products);
+        }
+
+        return collectionRepository.save(collection);
+    }
+
+    public Collection getCollectionById(Long collectionId, Users currentUser) {
+        Collection collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Collection not found"));
+
+        if (!hasManagementAccess(collection.getStore(), currentUser)) {
+            throw new UnauthorizedException("No permission to view collection");
+        }
+
+        return collection;
+    }
+
+    public List<Collection> getStoreCollections(Long storeId, Users currentUser) {
+        Store store = storeService.getStoreById(storeId, currentUser);
+        return collectionRepository.findByStore(store);
+    }
+
+    @Transactional
+    public Collection updateCollection(Long collectionId, CollectionDTO collectionDTO, Users currentUser) {
+        Collection collection = getCollectionById(collectionId, currentUser);
+
+        if (!hasManagementAccess(collection.getStore(), currentUser)) {
+            throw new UnauthorizedException("No permission to update collection");
+        }
+
+        collection.setName(collectionDTO.getName());
+        collection.setDescription(collectionDTO.getDescription());
+        collection.setUpdatedAt(LocalDateTime.now());
+
+        System.out.println("CollectionDTO.getProductIds() = " + collectionDTO.getProductIds());
+
+        if (collectionDTO.getProductIds() != null) {
+            Set<Product> products = collectionDTO.getProductIds().stream()
+                    .map(id -> productRepository.findById(id)
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id)))
+                    .collect(Collectors.toSet());
+            collection.setProducts(products);
+        }
+
+        return collectionRepository.save(collection);
+    }
+
+    public void deleteCollection(Long collectionId, Users currentUser) {
+        Collection collection = getCollectionById(collectionId, currentUser);
+
+        if (!hasManagementAccess(collection.getStore(), currentUser)) {
+            throw new UnauthorizedException("No permission to delete collection");
+        }
+
+        collectionRepository.delete(collection);
+    }
+
+    private boolean hasManagementAccess(Store store, Users user) {
+        StoreRole userRole = storeRoleRepository.findByStoreAndUser(store, user)
+                .orElse(null);
+
+        if (userRole == null) return false;
+
+        return userRole.getRole() == StoreRole.StoreRoleType.OWNER ||
+                userRole.getRole() == StoreRole.StoreRoleType.ADMIN;
+    }
+}
+
+================
+File: Service/CustomOAuth2UserService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.UserRepo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+
+@Service
+public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
+
+    private final DefaultOAuth2UserService delegate = new DefaultOAuth2UserService();
+    @Autowired
+    private UserRepo repo;
+
+    @Autowired
+    private JWTService jwtService;
+
+    @Override
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws UsernameNotFoundException {
+        OAuth2User oAuth2User = delegate.loadUser(userRequest);
+        System.out.println(userRequest.getClientRegistration().toString());
+        Users user = repo.findByUsername(oAuth2User.getAttribute("name")).orElse(null);
+        if (user == null) {
+            user = new Users();
+            user.setUsername(oAuth2User.getAttribute("name"));
+            //dependring on the provider, you can set the provider here
+            user.setProvider(userRequest.getClientRegistration().getRegistrationId());
+            repo.save(user);
+        }
+        String token = jwtService.generateToken(user);
+        System.out.println("Generated Token: " + token);
+                System.out.println("User found: " + user.getUsername());
+        Map<String, Object> attributes = new HashMap<>(oAuth2User.getAttributes());
+        // Additional processing of attributes if needed
+
+        return oAuth2User;
+    }
+}
+
+================
+File: Service/CustomUserDetailsService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.UserPrincipal;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.UserRepo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    @Autowired
+    private UserRepo repo;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
+        Users user = repo.findByUsername(username)
+                .orElseGet(() -> repo.findByEmail(username)
+                        .orElse(null));
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found");
+        }
+
+        return new UserPrincipal(user);
+    }
+}
+
+================
+File: Service/HistoryProductStoreService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.shared.HistoryProductMethod;
+import com.olatech.shopxauthservice.Model.Product;
+import com.olatech.shopxauthservice.Model.shared.SyncStatus;
+import com.olatech.shopxauthservice.Model.shared.HistoryProductStore;
+import com.olatech.shopxauthservice.Repository.HistoryProductStoreRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+public class HistoryProductStoreService {
+    @Autowired
+    private HistoryProductStoreRepository historyProductStoreRepository;
+
+
+
+    public void saveHistoryProductStore(Product product, HistoryProductMethod method, SyncStatus status) {
+        HistoryProductStore historyProductStore = new HistoryProductStore();
+        historyProductStore.setProduct(product);
+        historyProductStore.setMethod(method);
+        historyProductStore.setSyncStatus(status);
+        historyProductStore.setStoreId(product.getStore().getId());
+        log.info("Saving history product store" + historyProductStore);
+        historyProductStoreRepository.save(historyProductStore);
+    }
+}
+
+================
+File: Service/JWTService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Service
+public class JWTService {
+
+    static String SECRET = "YmFzZTY0IGVuY29kaW5fdfdsfkjdhsfuidksghfilsdufgsdejhfgsdhjkfgsdkjufgoiusdyfguoseydfgeuszyfgezfbnzeuiofrnyzeuiofryzeyiurftbzevuyfrezuytdfrtezivuydfzefueznghfiuezynbfzebtsebfiuezy";
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+    public String generateToken(Users user) {
+        // 1 hour expiration
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+
+        List<StoreRole> storeRoles = storeRoleRepository.findByUser(user);
+        // store access should be an Object with storeId and access level
+        List<Map<String, Object>> storeAccess = storeRoles.stream().map(storeRole -> {
+            Map<String, Object> store = new HashMap<>();
+            store.put("storeId", storeRole.getStore().getId());
+            store.put("role", storeRole.getRole());
+            return store;
+        }).collect(Collectors.toList());
+
+        claims.put("stores", storeAccess);
+        return Jwts.builder()
+                .claims()
+                .add(claims)
+                .subject(user.getUsername())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + 60 * 60 * 3600))
+                .and()
+                .signWith(getKey())
+                .compact();
+
+    }
+    public String generateRefreshToken(String username) {
+        // 7 days expiration
+        Map<String, Object> claims = new HashMap<>();
+        return Jwts.builder()
+                .claims()
+                .add(claims)
+                .subject(username)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + 60 * 60 * 24 * 7 * 1000))
+                .and()
+                .signWith(getKey())
+                .compact();
+
+    }
+
+    public static SecretKey getKey() {
+        byte[] key = Decoders.BASE64.decode(SECRET);
+        return Keys.hmacShaKeyFor(key);
+    }
+
+    public boolean validateToken(String token, UserDetails userDetails) {
+        final String username = extractUserName(token);
+        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    }
+
+    public String extractUserName(String token) {
+        // extract the username from jwt token
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    private <T> T extractClaim(String token, Function<Claims, T> claimResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+}
+
+================
+File: Service/ProductService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.DTO.Product.CreateProductDto;
+import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
+import com.olatech.shopxauthservice.DTO.VariantDTO;
+import com.olatech.shopxauthservice.Mapper.ProductMapper;
+import com.olatech.shopxauthservice.Model.*;
+import com.olatech.shopxauthservice.Model.shared.HistoryProductMethod;
+import com.olatech.shopxauthservice.Model.shared.SyncStatus;
+import com.olatech.shopxauthservice.Repository.ProductVariantRepository;
+import com.olatech.shopxauthservice.Repository.ProductRepository;
+
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import com.olatech.shopxauthservice.Service.Product.ProductTypeService;
+import com.olatech.shopxauthservice.exceptions.DuplicateSkuException;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import com.olatech.shopxauthservice.DTO.ProductDTO;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Slf4j
+@Service
+
+public class ProductService {
+
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+
+    @Autowired
+    private  ProductRepository productRepository;
+
+    @Autowired
+    private  StoreService storeService;
+
+    @Autowired
+    private  CategoryService categoryService;
+
+    @Autowired
+    private HistoryProductStoreService historyProductStoreService;
+
+    @Autowired
+    private ProductVariantRepository productVariantRepository;
+
+    @Autowired
+    private ProductValidationService validationService;
+    @Autowired
+    private ProductMapper productMapper;
+
+    @Autowired
+    private ProductTypeService productTypeService;
+
+    @Transactional
+    public Product createProduct(@Valid @NotNull ProductDTO productDTO,
+                                 @NotNull Long storeId,
+                                 @NotNull Users user,
+                                 List<String> imageUrls) {
+        Store store = storeService.getStoreById(storeId, user);
+        Product product = new Product();
+        updateProductFromDTO(product, productDTO, store, user);
+
+        // Ajouter les images au produit
+        if (imageUrls != null && !imageUrls.isEmpty()) {
+            for (String imageUrl : imageUrls) {
+                ProductImage productImage = new ProductImage();
+                productImage.setImageUrl(imageUrl);
+                productImage.setProduct(product);
+                product.getImages().add(productImage);
+            }
+        }
+
+        Product savedProduct = productRepository.save(product);
+        historyProductStoreService.saveHistoryProductStore(savedProduct, HistoryProductMethod.CREATE, SyncStatus.PENDING);
+        return savedProduct;
+    }
+
+    @Transactional
+    public Page<Product> getStoreProducts(@NotNull Long storeId, @NotNull Users user, Pageable pageable) {
+        Store store = storeService.getStoreById(storeId, user);
+        return productRepository.findByStore(store, pageable);
+    }
+
+    private void updateProductFromDTO(Product product, ProductDTO dto,
+                                      Store store, Users user) {
+        product.setName(dto.getName());
+        product.setSlug(dto.getSlug());
+        product.setDescription(dto.getDescription());
+        product.setBasePrice(dto.getBasePrice());
+        product.setSalePrice(dto.getSalePrice());
+        product.setStore(store);
+        //product.setCategory(categoryService.getCategoryById(dto.getCategoryId(), user));
+        product.setManageStock(dto.isManageStock());
+        product.setStockThreshold(dto.getStockThreshold());
+        product.setTags(dto.getTags());
+    }
+
+    public Product getArticleById(Long articleId, Users currentUser) {
+        return productRepository.findById(articleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
+    }
+
+    public Product updateArticle(Long articleId, ProductDTO articleDTO, Users currentUser) {
+        Product article = getArticleById(articleId, currentUser);
+        Store store = article.getStore();
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to update article");
+        }
+        updateProductFromDTO(article, articleDTO, store, currentUser);
+        return productRepository.save(article);
+    }
+
+    public void deleteArticle(Long articleId, Users currentUser) {
+        Product article = getArticleById(articleId, currentUser);
+        Store store = article.getStore();
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to delete article");
+        }
+        productRepository.delete(article);
+    }
+
+    public Product publishProduct(Long articleId, Users currentUser) {
+        Product article = getArticleById(articleId, currentUser);
+        Store store = article.getStore();
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to publish article");
+        }
+        article.setActive(true);
+        return productRepository.save(article);
+    }
+
+    public Product unpublishProduct(Long articleId, Users currentUser) {
+        Product article = getArticleById(articleId, currentUser);
+        Store store = article.getStore();
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to unpublish article");
+        }
+        article.setActive(false);
+        return productRepository.save(article);
+    }
+
+    public boolean hasManagementAccess(Store store, Users user) {
+        StoreRole userRole = storeRoleRepository.findByStoreAndUser(store, user)
+                .orElse(null);
+
+        if (userRole == null) return false;
+
+        return userRole.getRole() == StoreRole.StoreRoleType.OWNER ||
+                userRole.getRole() == StoreRole.StoreRoleType.ADMIN;
+    }
+
+    public long getActiveProductsCount(Long storeId, Users currentUser) {
+        Store store = storeService.getStoreById(storeId, currentUser);
+        return productRepository.countByStoreAndIsActive(store, true);
+    }
+
+    public List<Product> getRecentProducts(int limit) {
+        return productRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
+    }
+
+    public ProductVariant createVariant(VariantDTO variantDTO, Store store, Long productId, String name, List<String> imageUrls, Users user) {
+        Product product = getArticleById(productId, user);
+        if (!hasManagementAccess(store, user)) {
+            throw new UnauthorizedException("No permission to create variant");
+        }
+        if (product.getVariants().stream().anyMatch(v -> v.getName().equals(name))) {
+            throw new IllegalArgumentException("Variant with name already exists");
+        }
+
+
+        ProductVariant variant = new ProductVariant();
+        variant.setProduct(product);
+        variant.setName(name);
+        variant.setBasePrice(new BigDecimal(variantDTO.getBasePrice()));
+        variant.setSalePrice(new BigDecimal(variantDTO.getSalePrice()));
+        variant.setManageStock(variantDTO.isManageStock());
+        variant.setStockThreshold(variantDTO.getStockThreshold());
+        variant.setActive(variantDTO.isActive());
+
+        if (imageUrls != null && !imageUrls.isEmpty()) {
+            for (String imageUrl : imageUrls) {
+                VariantImage variantImage = new VariantImage();
+                variantImage.setImageUrl(imageUrl);
+                variantImage.setVariant(variant);
+                variant.getImages().add(variantImage);
+            }
+        }
+
+
+        return productVariantRepository.save(variant);
+    }
+
+    public void deleteVariant(Long variantId, Long storeId, Users currentUser) {
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
+        Store store = storeService.getStoreById(storeId, currentUser);
+        if (!hasManagementAccess(store, currentUser)) {
+            throw new UnauthorizedException("No permission to delete variant");
+        }
+        productVariantRepository.delete(variant);
+    }
+
+    public Product createProduct(Product product) throws DuplicateSkuException {
+        validationService.validateProduct(product);
+
+        //creer un random sku en fonction du nom du produit et si le sku existe deja on incremente le nombre
+        String sku = product.getName().toUpperCase().replaceAll("\\s+", "-");
+        int i = 1;
+        while (productRepository.existsBySku(sku)) {
+            sku = product.getName().toUpperCase().replaceAll("\\s+", "-") + "-" + i;
+            i++;
+        }
+
+        // Vérifier si le SKU existe déjà
+        if (product.getSku() != null && productRepository.existsBySku(product.getSku())) {
+            throw new DuplicateSkuException("SKU already exists: " + product.getSku());
+        }
+
+        product.setCreatedAt(LocalDateTime.now());
+        product.setUpdatedAt(LocalDateTime.now());
+
+        return productRepository.save(product);
+    }
+
+    @Transactional
+    public Product createProduct(CreateProductDto dto, Long storeId) throws DuplicateSkuException {
+        Store store = storeService.getStoreById(storeId, null);
+        ProductType type = productTypeService.getProductTypeById1(dto.productTypeId);
+
+
+        // Vérifier si le SKU existe déjà
+        if (dto.sku != null && productRepository.existsBySku(dto.sku)) {
+            throw new DuplicateSkuException("SKU already exists: " + dto.sku);
+        }
+
+        // Mapper le DTO vers l'entité
+        Product product = productMapper.toEntity(dto);
+
+        log.info("Product: {}", product.getFieldValues().toString());
+
+        // Valider et sauvegarder
+        product.setStore(store);
+        product.setProductType(type);
+
+        product.getFieldValues().forEach(fieldValue -> fieldValue.setProduct(product));
+
+        // Générer un SKU si non fourni
+        if (product.getSku() == null) {
+            String sku = product.getName().toUpperCase().replaceAll("\\s+", "-");
+            int i = 1;
+            while (productRepository.existsBySku(sku)) {
+                sku = product.getName().toUpperCase().replaceAll("\\s+", "-") + "-" + i;
+                i++;
+            }
+            product.setSku(sku);
+
+        }
+
+        // Valider et sauvegarder
+        validationService.validateProduct(product);
+        log.info("Image urls: {}", product.getImages().toString());
+        return productRepository.save(product);
+    }
+
+    public Store getStoreById(Long storeId, Users currentUser) {
+        return storeService.getStoreById(storeId, currentUser);
+    }
+}
+
+================
+File: Service/ProductValidationService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.*;
+import com.olatech.shopxauthservice.Repository.ProductFieldDefinitionRepository;
+import jakarta.validation.ValidationException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@Transactional
+@Slf4j
+public class ProductValidationService {
+
+    @Autowired
+    private ProductFieldDefinitionRepository fieldDefRepository;
+
+    @Autowired
+    private VariantFieldDefinitionRepository variantDefRepository;
+
+    public void validateProduct(Product product) {
+        ProductType type = product.getProductType();
+
+        // Charger les définitions des champs pour ce type
+        List<ProductFieldDefinition> requiredFields =
+                fieldDefRepository.findByProductTypeAndRequiredTrue(type);
+
+        // Vérifier les champs requis
+        for (ProductFieldDefinition fieldDef : requiredFields) {
+            validateField(product, fieldDef);
+        }
+
+        // Vérifier les variantes si nécessaire
+        if (product.HasVariants()) {
+            List<VariantFieldDefinition> variantDefs =
+                    variantDefRepository.findByProductType(type);
+
+            for (ProductVariant variant : product.getVariants()) {
+                validateVariant(variant, variantDefs);
+            }
+        }
+    }
+
+    private void validateField(Product product, ProductFieldDefinition fieldDef) {
+            Optional<ProductFieldValue> fieldValue = product.getFieldValues().stream()
+                .filter(f -> f.getFieldName().equals(fieldDef.getFieldName()))
+                .findFirst();
+
+        if (fieldDef.isRequired() && fieldValue.isEmpty()) {
+            throw new ValidationException(
+                    String.format("Required field '%s' is missing", fieldDef.getFieldName())
+            );
+        }
+
+        if (fieldValue.isPresent()) {
+            String value = fieldValue.get().getValue();
+            validateFieldValue(value, fieldDef);
+        }
+    }
+
+    private void validateFieldValue(String value, ProductFieldDefinition fieldDef) {
+        switch (fieldDef.getFieldType()) {
+            case "NUMBER":
+                try {
+                    Double.parseDouble(value);
+                } catch (NumberFormatException e) {
+                    throw new ValidationException(
+                            String.format("Invalid number format for field '%s'", fieldDef.getFieldName())
+                    );
+                }
+                break;
+
+            case "BOOLEAN":
+                if (!value.equals("true") && !value.equals("false")) {
+                    throw new ValidationException(
+                            String.format("Invalid boolean value for field '%s'", fieldDef.getFieldName())
+                    );
+                }
+                break;
+            default:
+                // Pas de validation spécifique pour les autres types
+
+        }
+    }
+
+    private void validateVariant(
+            ProductVariant variant,
+            List<VariantFieldDefinition> variantDefs
+    ) {
+        for (VariantFieldDefinition def : variantDefs) {
+            String value = variant.getOptionValues().get(def.getOptionName());
+
+            if (def.isRequired() && (value == null || value.trim().isEmpty())) {
+                log.info("Required variant option '{}' is missing for variant '{}'",
+                        def.getOptionName(), variant.toString());
+                throw new ValidationException(
+                        String.format("Required variant option '%s' is missing",
+                                def.getOptionName())
+                );
+            }
+
+            if (value != null && !def.getAllowedValues().contains(value)) {
+                throw new ValidationException(
+                        String.format("Invalid value '%s' for option '%s'. Allowed values: %s",
+                                value, def.getOptionName(),
+                                String.join(", ", def.getAllowedValues()))
+                );
+            }
+        }
+    }
+}
+
+================
+File: Service/S3Service.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.UUID;
+
+@Service
+public class S3Service {
+
+    @Autowired
+    private AmazonS3 amazonS3;
+
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
+
+    public String uploadFile(MultipartFile file) throws IOException {
+        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType(file.getContentType());
+        metadata.setContentLength(file.getSize());
+
+        amazonS3.putObject(new PutObjectRequest(
+                bucketName,
+                fileName,
+                file.getInputStream(),
+                metadata
+        ).withCannedAcl(com.amazonaws.services.s3.model.CannedAccessControlList.PublicRead)
+        );
+
+        return amazonS3.getUrl(bucketName, fileName).toString();
+    }
+}
+
+================
+File: Service/SessionService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+
+import com.olatech.shopxauthservice.Model.Sessions;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.SessionRepo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class SessionService {
+
+    @Autowired
+    private SessionRepo repo;
+
+
+    public Sessions createSession(Sessions session) {
+        return repo.save(session);
+    }
+
+
+    public List<Sessions> getAllSessionsByUserId(Users user) {
+        return repo.findByUser(user);
+    }
+
+    public List<Sessions> getAllSessions() {
+        return repo.findAll();
+    }
+
+    public Sessions getSessionById(Long id) {
+        return repo.findById(id).orElse(null);
+    }
+
+    public Sessions updateSession(Sessions session) {
+        return repo.save(session);
+    }
+
+    public void deleteSession(Long id) {
+        repo.deleteById(id);
+    }
+
+}
+
+================
+File: Service/StoreInvitationService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.DTO.InvitationDTO;
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.StoreInvitation;
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.StoreInvitationRepository;
+import com.olatech.shopxauthservice.Repository.StoreRepository;
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import com.olatech.shopxauthservice.Repository.UserRepo;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+// StoreInvitationService.java
+@Service
+public class StoreInvitationService {
+
+    @Autowired
+    private StoreRepository storeRepository;
+
+    @Autowired
+    private UserRepo userRepository;
+
+    @Autowired
+    private StoreInvitationRepository invitationRepository;
+
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+
+    @Transactional
+    public StoreInvitation createInvitation(Long storeId, InvitationDTO invitationDTO, Users inviter) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasManagementAccess(store, inviter)) {
+            throw new UnauthorizedException("No permission to create invitations");
+        }
+
+        // Vérifier si l'utilisateur existe déjà
+        Users invitedUser = userRepository.findByEmail(invitationDTO.getEmail())
+                .orElse(null);
+
+        StoreInvitation invitation = new StoreInvitation();
+        invitation.setStore(store);
+        invitation.setEmail(invitationDTO.getEmail());
+        invitation.setRole(invitationDTO.getRole());
+        invitation.setInviter(inviter);
+        invitation.setStatus(StoreInvitation.InvitationStatus.PENDING);
+
+        return invitationRepository.save(invitation);
+    }
+
+    public List<StoreInvitation> getPendingInvitations(Long storeId, Users user) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasManagementAccess(store, user)) {
+            throw new UnauthorizedException("No permission to view invitations");
+        }
+
+        return invitationRepository.findByStoreAndStatus(store, StoreInvitation.InvitationStatus.PENDING);
+    }
+
+    public List<StoreInvitation> getInvitationsByUser(String email) {
+        return invitationRepository.findByEmail(email);
+    }
+
+    @Transactional
+    public void acceptInvitation(Long invitationId, Users user) {
+        StoreInvitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
+
+        if (!invitation.getEmail().equals(user.getEmail())) {
+            throw new UnauthorizedException("This invitation is not for you");
+        }
+
+        invitation.setStatus(StoreInvitation.InvitationStatus.ACCEPTED);
+        invitation.getStore().getStaff().add(user);
+
+        // Créer le rôle pour le nouveau membre
+        StoreRole staffRole = new StoreRole();
+        staffRole.setStore(invitation.getStore());
+        staffRole.setUser(user);
+        staffRole.setRole(invitation.getRole());
+        storeRoleRepository.save(staffRole);
+
+        invitationRepository.save(invitation);
+    }
+
+    public boolean hasManagementAccess(Store store, Users user) {
+        StoreRole userRole = storeRoleRepository.findByStoreAndUser(store, user)
+                .orElse(null);
+
+        if (userRole == null) return false;
+
+        return userRole.getRole() == StoreRole.StoreRoleType.OWNER ||
+                userRole.getRole() == StoreRole.StoreRoleType.ADMIN;
+    }
+
+    public void rejectInvitation(Long invitationId, Users currentUser) {
+        StoreInvitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
+
+        if (!invitation.getEmail().equals(currentUser.getEmail())) {
+            throw new UnauthorizedException("This invitation is not for you");
+        }
+
+        invitation.setStatus(StoreInvitation.InvitationStatus.DECLINED);
+        invitationRepository.save(invitation);
+    }
+}
+
+================
+File: Service/StoreService.java
+================
+// StoreService.java
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Repository.StoreRepository;
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import com.olatech.shopxauthservice.DTO.StoreDTO;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+public class StoreService {
+
+    @Autowired
+    private StoreRepository storeRepository;
+
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+
+    @Transactional
+    public Store createStore(StoreDTO storeDTO, Users owner) {
+        Store store = new Store();
+        store.setName(storeDTO.getName());
+        store.setDescription(storeDTO.getDescription());
+        store.setLogo(storeDTO.getLogo());
+        store.setOwner(owner);
+        store = storeRepository.save(store);
+
+        // Créer le rôle OWNER pour le créateur
+        StoreRole ownerRole = new StoreRole();
+        ownerRole.setStore(store);
+        ownerRole.setUser(owner);
+        ownerRole.setRole(StoreRole.StoreRoleType.OWNER);
+        storeRoleRepository.save(ownerRole);
+
+        return store;
+    }
+
+    public List<Store> getUserStores(Users user) {
+        return storeRepository.findByOwnerOrStaffContaining(user, user);
+    }
+
+    public Store getStoreById(Long storeId, Users user) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+//        if (!hasAccess(store, user)) {
+//            throw new UnauthorizedException("Access denied");
+//        }
+
+        return store;
+    }
+
+    @Transactional
+    public Store updateStore(Long storeId, StoreDTO storeDTO, Users user) {
+        Store store = getStoreById(storeId, user);
+
+        if (!isOwner(store, user)) {
+            throw new UnauthorizedException("Only store owner can update store details");
+        }
+
+        store.setName(storeDTO.getName());
+        store.setDescription(storeDTO.getDescription());
+        store.setLogo(storeDTO.getLogo());
+        store.setFacebookBusinessId(storeDTO.getFacebookBusinessId());
+        store.setFacebookCatalogId(storeDTO.getFacebookCatalogId());
+        store.setFacebookToken(storeDTO.getFacebookToken());
+
+        return storeRepository.save(store);
+    }
+
+    @Transactional
+    public void deleteStore(Long storeId, Users user) {
+        Store store = getStoreById(storeId, user);
+
+        if (!isOwner(store, user)) {
+            throw new UnauthorizedException("Only store owner can delete the store");
+        }
+
+        storeRepository.delete(store);
+    }
+
+    private boolean hasAccess(Store store, Users user) {
+        return isOwner(store, user) || isStaff(store, user);
+    }
+
+    private boolean isOwner(Store store, Users user) {
+        return store.getOwner().getId() == user.getId();
+    }
+
+    private boolean isStaff(Store store, Users user) {
+        return store.getStaff().contains(user);
+    }
+}
+
+================
+File: Service/StoreStaffService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.DTO.StoreStaffDTO;
+import com.olatech.shopxauthservice.Model.Store;
+import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.StoreRepository;
+import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
+import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
+import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+public class StoreStaffService {
+
+    @Autowired
+    private StoreRepository storeRepository;
+
+    @Autowired
+    private StoreRoleRepository storeRoleRepository;
+
+    public List<StoreStaffDTO> getStoreStaff(Long storeId, Users user) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasAccess(store, user)) {
+            throw new UnauthorizedException("Access denied");
+        }
+
+        return store.getUserRoles().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void updateStaffRole(Long storeId, int userId, StoreRole.StoreRoleType newRole, Users manager) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasManagementAccess(store, manager)) {
+            throw new UnauthorizedException("No permission to update roles");
+        }
+
+        StoreRole staffRole = storeRoleRepository.findByStoreAndUser_Id(store, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
+
+        // Prevent modifying owner's role
+        if (staffRole.getRole() == StoreRole.StoreRoleType.OWNER) {
+            throw new UnauthorizedException("Cannot modify owner's role");
+        }
+
+        staffRole.setRole(newRole);
+        storeRoleRepository.save(staffRole);
+    }
+
+    private StoreStaffDTO convertToDTO(StoreRole storeRole) {
+        StoreStaffDTO dto = new StoreStaffDTO();
+        dto.setUserId(storeRole.getUser().getId());
+        dto.setUsername(storeRole.getUser().getUsername());
+        dto.setEmail(storeRole.getUser().getEmail());
+        dto.setRole(storeRole.getRole());
+        return dto;
+    }
+
+    /**
+     * Checks if a user has any role in the store (basic access)
+     */
+    private boolean hasAccess(Store store, Users user) {
+        return storeRoleRepository.findByStoreAndUser_Id(store, user.getId    ())
+                .isPresent();
+    }
+
+    /**
+     * Checks if a user has management privileges (OWNER or MANAGER role)
+     */
+    private boolean hasManagementAccess(Store store, Users user) {
+        Optional<StoreRole> roleOpt = storeRoleRepository.findByStoreAndUser_Id(store, user.getId());
+
+        if (!roleOpt.isPresent()) {
+            return false;
+        }
+
+        StoreRole.StoreRoleType role = roleOpt.get().getRole();
+        return role == StoreRole.StoreRoleType.OWNER ||
+                role == StoreRole.StoreRoleType.MANAGER;
+    }
+
+    /**
+     * Adds a new staff member to the store
+     */
+    @Transactional
+    public void addStoreStaff(Long storeId, int userId, StoreRole.StoreRoleType role, Users manager) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasManagementAccess(store, manager)) {
+            throw new UnauthorizedException("No permission to add staff members");
+        }
+
+        // Check if user already has a role in the store
+        if (storeRoleRepository.findByStoreAndUser_Id(store, userId).isPresent()) {
+            throw new IllegalStateException("User already has a role in this store");
+        }
+
+        // Create new store role
+        StoreRole newRole = new StoreRole();
+        newRole.setStore(store);
+        newRole.setUserId(userId);
+        newRole.setRole(role);
+
+        storeRoleRepository.save(newRole);
+    }
+
+    /**
+     * Removes a staff member from the store
+     */
+    @Transactional
+    public void removeStoreStaff(Long storeId, int userId, Users manager) {
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        if (!hasManagementAccess(store, manager)) {
+            throw new UnauthorizedException("No permission to remove staff members");
+        }
+
+        StoreRole staffRole = storeRoleRepository.findByStoreAndUser_Id(store, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
+
+        // Prevent removing the owner
+        if (staffRole.getRole() == StoreRole.StoreRoleType.OWNER) {
+            throw new UnauthorizedException("Cannot remove store owner");
+        }
+
+        storeRoleRepository.delete(staffRole);
+    }
+}
+
+================
+File: Service/UserService.java
+================
+package com.olatech.shopxauthservice.Service;
+
+import com.olatech.shopxauthservice.Model.Users;
+import com.olatech.shopxauthservice.Repository.UserRepo;
+import com.olatech.shopxauthservice.exceptions.UserAlreadyExistsException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserService {
+
+    @Autowired
+    private UserRepo userRepo;
+
+    @Autowired
+    private AuthenticationManager authManager;
+
+    @Autowired
+    private JWTService jwtService;
+
+    private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+    public Users register (Users user) throws Exception {
+        if (userRepo.existsByEmail(user.getEmail())) {
+            throw new UserAlreadyExistsException("email", "Email already in use");
+        }
+        if (userRepo.existsByUsername(user.getUsername())) {
+            throw new UserAlreadyExistsException("username", "Username already in use");
+        }
+        user.setPassword(encoder.encode(user.getPassword()));
+        return userRepo.save(user);
+    }
+
+    public String verifyUser(Users user) {
+
+
+                return jwtService.generateToken(user);
+    }
+
+    public Users getUserByUsername(String username) {
+        return userRepo.findByUsername(username).orElse(null);
+    }
+}
+
+================
+File: Service/VariantFieldDefinitionRepository.java
+================
+package com.olatech.shopxauthservice.Service;
+
+
+import com.olatech.shopxauthservice.Model.ProductType;
+import com.olatech.shopxauthservice.Model.VariantFieldDefinition;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface VariantFieldDefinitionRepository extends JpaRepository<VariantFieldDefinition, Long> {
+    List<VariantFieldDefinition> findByProductType(ProductType type);
+    List<VariantFieldDefinition> findByProductTypeAndRequiredTrue(ProductType type);
+    List<VariantFieldDefinition> findByProductTypeOrderByOrderPosition(ProductType type);
+}
+
+================
+File: ShopxAuthServiceApplication.java
+================
+package com.olatech.shopxauthservice;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class ShopxAuthServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ShopxAuthServiceApplication.class, args);
+    }
+
+}
+
+
+
+================================================================
+End of Codebase
+================================================================
