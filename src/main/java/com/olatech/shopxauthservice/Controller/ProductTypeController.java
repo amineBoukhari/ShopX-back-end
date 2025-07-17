@@ -1,47 +1,55 @@
 package com.olatech.shopxauthservice.Controller;
 
-
 import com.olatech.shopxauthservice.DTO.Product.ProductTypeDTO;
-import com.olatech.shopxauthservice.Model.ProductType;
 import com.olatech.shopxauthservice.Service.Product.ProductTypeService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/{storeID}/product-type")
 @Tag(name = "Product Type", description = "Product Type API")
 public class ProductTypeController {
+    
     @Autowired
     private ProductTypeService productTypeService;
 
-    @RequestMapping("/all")
-    @Operation(summary = "Get all product types", description = "Get all product types")
+    // Global endpoint (no store ID needed)
+    @GetMapping("/api/product-types")
+    @Operation(summary = "Get all product types")
     public ResponseEntity<List<ProductTypeDTO>> getAllProductTypes() {
-        return ResponseEntity.ok(productTypeService.getAllProductTypes());
+        try {
+            List<ProductTypeDTO> productTypes = productTypeService.getAllProductTypes();
+            return ResponseEntity.ok(productTypes);
+        } catch (Exception e) {
+            System.out.println("Error getting product types: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
-    @RequestMapping("/{id}")
-    @Operation(summary = "Récupérer un type de produit par son ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Type de produit trouvé"),
-            @ApiResponse(responseCode = "404", description = "Type de produit non trouvé"),
-            @ApiResponse(responseCode = "500", description = "Erreur interne du serveur")
-    })
-    public ResponseEntity<ProductTypeDTO> getProductTypeById(
-            @Parameter(description = "Product type id")
-            @PathVariable Long id
-    ) {
+    // Store-specific endpoint (what your frontend is calling)
+    @GetMapping("/api/{storeId}/product-type/all")
+    @Operation(summary = "Get all product types for store")
+    public ResponseEntity<List<ProductTypeDTO>> getAllProductTypesForStore(@PathVariable Long storeId) {
+        try {
+            // Product types are global, so we can ignore storeId
+            List<ProductTypeDTO> productTypes = productTypeService.getAllProductTypes();
+            return ResponseEntity.ok(productTypes);
+        } catch (Exception e) {
+            System.out.println("Error getting product types for store: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
-        return ResponseEntity.ok(productTypeService.getProductTypeById(id));
+    @GetMapping("/api/product-types/{id}")
+    public ResponseEntity<ProductTypeDTO> getProductTypeById(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(productTypeService.getProductTypeById(id));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

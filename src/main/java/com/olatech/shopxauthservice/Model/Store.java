@@ -19,6 +19,12 @@ public class Store {
     @Column(nullable = false)
     private String name;
 
+    private String template;
+
+    // Add getter and setter
+    public String getTemplate() { return template; }
+    public void setTemplate(String template) { this.template = template; }
+
     @Column(unique = true)
     private String slug;
 
@@ -190,4 +196,18 @@ public class Store {
     public void setSubdomain(String subdomain) {
         this.subdomain = subdomain;
     }
+
+    @Override
+public String toString() {
+    return "Store{" +
+            "id=" + id +
+            ", name='" + name + '\'' +
+            ", subdomain='" + subdomain + '\'' +
+            ", slug='" + slug + '\'' +
+            ", template='" + template + '\'' +
+            ", isActive=" + isActive +
+            ", owner=" + (owner != null ? owner.getUsername() : "null") +
+            '}';
+}
+
 }

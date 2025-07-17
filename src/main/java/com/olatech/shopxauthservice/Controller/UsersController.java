@@ -51,7 +51,7 @@ public class UsersController {
     JWTService jwtService;
 
     @Autowired
-    private GCPStorageService gcpStorageService;
+   private LocalFileStorageService localFileStorageService;
 
     private final OAuth2AuthorizedClientService clientService;
 
@@ -245,7 +245,7 @@ public class UsersController {
             currentUser.setUsername(user.getUsername());
 
             if (avatar != null && !avatar.isEmpty()) {
-                String avatarUrl = gcpStorageService.uploadFile(avatar);
+                String avatarUrl = localFileStorageService.uploadFile(avatar);
                 currentUser.setImageUrl(avatarUrl);
             }
 

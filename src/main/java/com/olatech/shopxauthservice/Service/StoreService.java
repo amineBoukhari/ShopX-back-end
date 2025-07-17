@@ -1,14 +1,14 @@
-// StoreService.java
 package com.olatech.shopxauthservice.Service;
 
+import com.olatech.shopxauthservice.DTO.StoreDTO;
+import com.olatech.shopxauthservice.DTO.WebsiteDTO;
 import com.olatech.shopxauthservice.Model.Store;
-import com.olatech.shopxauthservice.Model.Users;
 import com.olatech.shopxauthservice.Model.StoreRole;
+import com.olatech.shopxauthservice.Model.Users;
 import com.olatech.shopxauthservice.Repository.StoreRepository;
 import com.olatech.shopxauthservice.Repository.StoreRoleRepository;
-import com.olatech.shopxauthservice.DTO.StoreDTO;
 import com.olatech.shopxauthservice.exceptions.ResourceNotFoundException;
-import com.olatech.shopxauthservice.exceptions.UnauthorizedException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,27 +17,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class StoreService {
+
+    private static final Logger logger = LoggerFactory.getLogger(StoreService.class);
 
     @Autowired
     private StoreRepository storeRepository;
 
     @Autowired
     private StoreRoleRepository storeRoleRepository;
-    
+
     @Autowired
     private AuthorizationService authorizationService;
-    
+
     @Autowired
     private Route53Service route53Service;
-    
+
     @Value("${aws.route53.root.domain}")
     private String rootDomain;
-    
-    private static final Logger logger = LoggerFactory.getLogger(StoreService.class);
 
     @Transactional
     public Store createStore(StoreDTO storeDTO, Users owner) {
@@ -47,9 +46,9 @@ public class StoreService {
         store.setLogo(storeDTO.getLogo());
         store.setOwner(owner);
         store.setSlug(generateSlug(storeDTO.getName()));
+
         store = storeRepository.save(store);
 
-        // Créer le rôle OWNER pour le créateur
         StoreRole ownerRole = new StoreRole();
         ownerRole.setStore(store);
         ownerRole.setUser(owner);
@@ -58,27 +57,73 @@ public class StoreService {
 
         return store;
     }
-    
-    /**
-     * Génère un slug unique pour un magasin à partir de son nom
-     */
+
+    @Transactional
+    public Store createWebsite(WebsiteDTO websiteDTO, Users owner) {
+        logger.info("Creating website with DTO: {}", websiteDTO);
+
+        if (websiteDTO == null) throw new IllegalArgumentException("WebsiteDTO cannot be null");
+
+        String name = websiteDTO.getName();
+        String subdomain = websiteDTO.getSubdomain();
+        String template = websiteDTO.getTemplate();
+
+        if (name == null || name.trim().isEmpty())
+            throw new IllegalArgumentException("Website name cannot be null or empty.");
+        if (subdomain == null || subdomain.trim().isEmpty())
+            throw new IllegalArgumentException("Website subdomain cannot be null or empty.");
+        if (owner == null)
+            throw new IllegalArgumentException("Owner cannot be null");
+
+        String cleanName = name.trim();
+        String cleanSubdomain = subdomain.trim().toLowerCase();
+        String cleanTemplate = template != null ? template.trim() : "default";
+
+        String slug = generateSlug(cleanName);
+
+        Store store = new Store();
+        store.setName(cleanName);
+        store.setSubdomain(cleanSubdomain);
+        store.setTemplate(cleanTemplate);
+        store.setOwner(owner);
+        store.setSlug(slug);
+        store.setActive(true);
+
+        store = storeRepository.save(store);
+
+        StoreRole ownerRole = new StoreRole();
+        ownerRole.setStore(store);
+        ownerRole.setUser(owner);
+        ownerRole.setRole(StoreRole.StoreRoleType.OWNER);
+        storeRoleRepository.save(ownerRole);
+
+        logger.info("Website created successfully with ID: {}", store.getId());
+        return store;
+    }
+
+    public Store findBySlug(String slug) {
+        return storeRepository.findBySlug(slug)
+                .orElse(null);
+    }
+
     private String generateSlug(String name) {
         String baseSlug = name.toLowerCase()
+                .trim()
+                .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
-                .replaceAll("[^a-z0-9-]", "-")
                 .replaceAll("-+", "-")
                 .replaceAll("^-|-$", "");
-        
-        String slug = baseSlug;
+
+        if (baseSlug.isEmpty()) baseSlug = "store";
+
+        String finalSlug = baseSlug;
         int counter = 1;
-        
-        // Vérifier si le slug existe déjà et générer un nouveau si nécessaire
-        while (storeRepository.findBySlug(slug).isPresent()) {
-            slug = baseSlug + "-" + counter;
+        while (storeRepository.findBySlug(finalSlug).isPresent()) {
+            finalSlug = baseSlug + "-" + counter;
             counter++;
         }
-        
-        return slug;
+
+        return finalSlug;
     }
 
     public List<Store> getUserStores(Users user) {
@@ -86,33 +131,18 @@ public class StoreService {
     }
 
     public Store getStoreById(Long storeId, Users user) {
-        Store store = storeRepository.findById(storeId)
+        return storeRepository.findById(storeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
-
-        // Authorization is now handled by the AuthorizationService via annotations
-        // We no longer need to check access here as it's done at the controller level
-
-        return store;
     }
 
     public Store getStoreById(Long storeId) {
-        Store store = storeRepository.findById(storeId)
+        return storeRepository.findById(storeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
-
-        // Authorization is now handled by the AuthorizationService via annotations
-        // We no longer need to check access here as it's done at the controller level
-
-        return store;
     }
-
-
 
     @Transactional
     public Store updateStore(Long storeId, StoreDTO storeDTO, Users user) {
         Store store = getStoreById(storeId, user);
-
-        // Authorization is now handled by the @RequiresStoreRole annotation
-        // No need to check permissions here as it's done at the controller level
 
         store.setName(storeDTO.getName());
         store.setDescription(storeDTO.getDescription());
@@ -127,166 +157,89 @@ public class StoreService {
     @Transactional
     public void deleteStore(Long storeId, Users user) {
         Store store = getStoreById(storeId, user);
-
-        // Authorization is now handled by the @RequiresStoreRole annotation
-        // No need to check permissions here as it's done at the controller level
-
         storeRepository.delete(store);
     }
 
-    private boolean hasAccess(Store store, Users user) {
-        return isOwner(store, user) || isStaff(store, user);
-    }
-
-    private boolean isOwner(Store store, Users user) {
-        return store.getOwner().getId() == user.getId();
-    }
-
-    private boolean isStaff(Store store, Users user) {
-        return store.getStaff().contains(user);
-    }
-    
-    /**
-     * Attribue un sous-domaine à un magasin
-     * @param storeId ID du magasin
-     * @param subdomain Nom du sous-domaine (sans le domaine racine)
-     * @return Le magasin mis à jour
-     */
     @Transactional
     public Store assignSubdomain(Long storeId, String subdomain) {
-        // Vérifier que le magasin existe
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Magasin non trouvé"));
-        
-        // Normaliser le sous-domaine
+
         subdomain = normalizeSubdomain(subdomain);
-        
-        // Vérifier que le sous-domaine est disponible dans la base de données
+
         if (storeRepository.existsBySubdomain(subdomain)) {
             throw new IllegalArgumentException("Ce sous-domaine est déjà utilisé");
         }
-        
-        // Vérifier si le magasin a déjà un sous-domaine
+
         String oldSubdomain = store.getSubdomain();
-        
-        // Assigner le nouveau sous-domaine
         store.setSubdomain(subdomain);
         store = storeRepository.save(store);
-        
-        // Supprimer l'ancien enregistrement DNS si nécessaire
+
         if (oldSubdomain != null && !oldSubdomain.isEmpty()) {
-            logger.info("Suppression de l'ancien sous-domaine: {}", oldSubdomain);
             route53Service.deleteSubdomainRecord(oldSubdomain);
         }
-        
-        // Créer le nouvel enregistrement DNS
+
         boolean dnsSuccess = route53Service.createSubdomainRecord(subdomain);
         if (!dnsSuccess) {
             logger.warn("Échec de la création de l'enregistrement DNS pour le sous-domaine: {}", subdomain);
         }
-        
+
         return store;
     }
-    
-    /**
-     * Supprime le sous-domaine associé à un magasin
-     * @param storeId ID du magasin
-     * @return true si l'opération a réussi
-     */
+
     @Transactional
     public boolean removeSubdomain(Long storeId) {
-        // Vérifier que le magasin existe
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Magasin non trouvé"));
-        
-        // Vérifier si le magasin a un sous-domaine
+
         String currentSubdomain = store.getSubdomain();
         if (currentSubdomain == null || currentSubdomain.isEmpty()) {
-            return true; // Rien à faire
+            return true;
         }
-        
-        // Supprimer l'enregistrement DNS
+
         boolean dnsSuccess = route53Service.deleteSubdomainRecord(currentSubdomain);
-        
-        // Retirer le sous-domaine du magasin
         store.setSubdomain(null);
         storeRepository.save(store);
-        
+
         return dnsSuccess;
     }
-    
-    /**
-     * Vérifie si un sous-domaine est disponible
-     * @param subdomain Nom du sous-domaine à vérifier
-     * @return true si le sous-domaine est disponible
-     */
+
     public boolean isSubdomainAvailable(String subdomain) {
-        // Normaliser le sous-domaine
         subdomain = normalizeSubdomain(subdomain);
-        
-        // Vérifier dans la base de données
-        if (storeRepository.existsBySubdomain(subdomain)) {
-            return false;
-        }
-        
-        // Vérifier dans Route53 (pour les sous-domaines qui pourraient exister dans Route53 mais pas dans notre BD)
-        return !route53Service.subdomainExists(subdomain);
+        return !storeRepository.existsBySubdomain(subdomain) &&
+               !route53Service.subdomainExists(subdomain);
     }
-    
-    /**
-     * Normalise un sous-domaine pour s'assurer qu'il est valide et dans le format attendu
-     * @param subdomain Sous-domaine à normaliser
-     * @return Sous-domaine normalisé
-     */
+
     private String normalizeSubdomain(String subdomain) {
         if (subdomain == null || subdomain.isEmpty()) {
             throw new IllegalArgumentException("Le sous-domaine ne peut pas être vide");
         }
-        
-        // Convertir en minuscules
+
         subdomain = subdomain.toLowerCase();
-        
-        // Supprimer le domaine racine s'il est inclus
+
         if (subdomain.endsWith("." + rootDomain)) {
             subdomain = subdomain.substring(0, subdomain.length() - rootDomain.length() - 1);
         }
-        
-        // Remplacer les caractères invalides
-        subdomain = subdomain.replaceAll("[^a-z0-9-]", "-");
-        
-        // Supprimer les tirets multiples
-        subdomain = subdomain.replaceAll("-+", "-");
-        
-        // Supprimer les tirets au début et à la fin
-        subdomain = subdomain.replaceAll("^-|-$", "");
-        
-        // Vérifier la longueur minimale
+
+        subdomain = subdomain.replaceAll("[^a-z0-9-]", "-")
+                             .replaceAll("-+", "-")
+                             .replaceAll("^-|-$", "");
+
         if (subdomain.isEmpty()) {
             throw new IllegalArgumentException("Le sous-domaine normalisé est vide");
         }
-        
-        // Vérifier la longueur maximale (pour éviter les problèmes avec les limites DNS)
-        if (subdomain.length() > 63) {
-            subdomain = subdomain.substring(0, 63);
-        }
-        
-        return subdomain;
+
+        return subdomain.length() > 63 ? subdomain.substring(0, 63) : subdomain;
     }
-    
-    /**
-     * Obtient le FQDN (Fully Qualified Domain Name) pour un magasin
-     * @param storeId ID du magasin
-     * @return Le FQDN du magasin ou null si aucun sous-domaine n'est défini
-     */
+
     public String getStoreFqdn(Long storeId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Magasin non trouvé"));
-        
+
         if (store.getSubdomain() == null || store.getSubdomain().isEmpty()) {
             return null;
         }
-        
+
         return store.getSubdomain() + "." + rootDomain;
     }
 }
-

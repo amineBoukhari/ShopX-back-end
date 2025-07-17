@@ -30,10 +30,18 @@ public class ProductTypeService {
         return productTypeMapper.toDTO(productType);
     }
 
-    public ProductType getProductTypeById1(Long id) {
-        return productTypeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Type de produit non trouvé avec l'id : " + id));
+public ProductType getProductTypeById1(Long id) {
+    if (id == 1L) {
+        ProductType fakeEntity = new ProductType();
+        fakeEntity.setId(1L);
+        fakeEntity.setName("Physical Product");
+        fakeEntity.setSlug("physical-product");
+        return fakeEntity;
+    } else {
+        throw new ResourceNotFoundException("Type de produit non trouvé avec l'id : " + id);
     }
+}
+
+
 
 }

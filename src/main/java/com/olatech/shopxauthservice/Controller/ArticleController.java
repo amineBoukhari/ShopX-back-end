@@ -10,7 +10,7 @@ import com.olatech.shopxauthservice.Model.ProductVariant;
 import com.olatech.shopxauthservice.Model.Store;
 import com.olatech.shopxauthservice.Model.Users;
 import com.olatech.shopxauthservice.Repository.ProductRepository;
-import com.olatech.shopxauthservice.Service.GCPStorageService;
+import com.olatech.shopxauthservice.Service.LocalFileStorageService;
 import com.olatech.shopxauthservice.Service.ProductService;
 import com.olatech.shopxauthservice.Service.UserService;
 import com.olatech.shopxauthservice.DTO.ProductDTO;
@@ -46,23 +46,27 @@ import java.util.*;
 @Tag(name = "Articles", description = "Article management APIs")
 public class ArticleController {
 
+    @Autowired
+    private ProductService articleService;
+    
+    @Autowired
+    private UserService userService;
 
     @Autowired
-    private  ProductService articleService;
-    @Autowired
-    private  UserService userService;
-
-    @Autowired
-    private GCPStorageService gcpStorageService;
+    private LocalFileStorageService localFileStorageService;
 
     @Autowired
     private ProductRepository productRepository;
 
+    // Simple upload method using only local storage
+    private String uploadFile(MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be null or empty");
+        }
 
-
-
-
-
+        log.info("Uploading file using local storage: {}", file.getOriginalFilename());
+        return localFileStorageService.uploadFile(file);
+    }
 
     @Operation(
             summary = "Rechercher et filtrer des articles",
@@ -217,9 +221,6 @@ public class ArticleController {
         return articleService.getActiveProductsCount(storeId, currentUser);
     }
 
-
-
-
     @GetMapping("/recent")
     public List<Product> getRecentProducts(@RequestParam int limit) {
         return articleService.getRecentProducts(limit);
@@ -247,27 +248,26 @@ public class ArticleController {
                 for (MultipartFile image : images) {
                     try {
                         if (!image.isEmpty()) {
-                            String imageUrl = gcpStorageService.uploadFile(image);
+                            String imageUrl = uploadFile(image);
                             imageUrls.add(imageUrl);
                         }
                     } catch (IOException e) {
+                        log.error("Failed to upload variant image: {}", e.getMessage());
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                 .body("Failed to upload image: " + e.getMessage());
                     }
                 }
             }
 
-
             ProductVariant variant = articleService.createVariant(variantDTO, product.getStore(), productId, variantDTO.getName(), imageUrls, currentUser);
-
-
 
             return ResponseEntity.status(HttpStatus.CREATED).body(variant);
         } catch (Exception e) {
+            log.error("Failed to create variants: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to create variants: " + e.getMessage());
         }
-}
+    }
 
     @DeleteMapping("/variants/{variantId}")
     public ResponseEntity<Void> deleteVariant(
@@ -285,103 +285,120 @@ public class ArticleController {
             Product saved = articleService.createProduct(product);
             return ResponseEntity.ok(saved);
         } catch (ValidationException e) {
+            log.error("Validation failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (DuplicateSkuException e) {
+            log.error("Duplicate SKU: {}", e.getMessage());
             throw new RuntimeException(e);
         }
     }
 
     @PostMapping(value = "/v3", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @CheckSubscriptionLimit(type = LimitType.PRODUCT)
-    public ResponseEntity<Product> createProduct(
+    //@CheckSubscriptionLimit(type = LimitType.PRODUCT)
+    public ResponseEntity<?> createProduct(
             @PathVariable String storeId,
             @RequestPart(value = "data") String productDtoJson,
             @RequestPart(value = "productImages", required = false) List<MultipartFile> productImages,
             @RequestPart(value = "variantImages", required = false) List<MultipartFile> variantImages
     ) {
         try {
-            // Convertir le JSON en CreateProductDto
+            log.info("Creating product for store: {}", storeId);
+            
+            // Convert JSON to CreateProductDto
             ObjectMapper mapper = new ObjectMapper();
             CreateProductDto productDto = mapper.readValue(productDtoJson, CreateProductDto.class);
 
-            // Upload product images
+            // Upload product images using local storage
             List<String> productImageUrls = new ArrayList<>();
-            if (productImages != null) {
+            if (productImages != null && !productImages.isEmpty()) {
+                log.info("Processing {} product images", productImages.size());
                 for (MultipartFile image : productImages) {
                     try {
                         if (!image.isEmpty()) {
-                            String imageUrl = gcpStorageService.uploadFile(image);
+                            String imageUrl = uploadFile(image);
                             productImageUrls.add(imageUrl);
+                            log.info("Successfully uploaded product image: {}", imageUrl);
                         }
                     } catch (IOException e) {
-                        throw new RuntimeException("Failed to upload product image: " + e.getMessage());
+                        log.error("Failed to upload product image: {}", e.getMessage());
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(Map.of("error", "Failed to upload product image: " + e.getMessage()));
                     }
                 }
             }
             productDto.imageUrls = productImageUrls.toArray(new String[0]);
-            //log.info("Processing product images" + productDto.toString());
+
             // Upload variant images if any
-            if (productDto.variants != null && variantImages != null) {
-                //log.info("Processing variant images" + variantImages.size());
+            if (productDto.variants != null && variantImages != null && !variantImages.isEmpty()) {
+                log.info("Processing {} variant images for {} variants", variantImages.size(), productDto.variants.length );
                 int currentImageIndex = 0;
+                
                 for (VariantDTO variant : productDto.variants) {
                     List<String> variantImageUrls = new ArrayList<>();
-                    // Get the number of images for this variant from the metadata
-                    int imageCount = 0; // Default to 0 or another appropriate default
-                    String originalFilename = variantImages.get(currentImageIndex).getName();
-                    String newFileName = variantImages.get(currentImageIndex).getName();
-                    log.info("Processing variant images" + newFileName);
-                    // Try to extract a numeric count if possible
-                    try {
-                        // Option 1: If using a specific naming convention like "1_filename.jpg"
-                        if (newFileName.contains("_")) {
-                            imageCount = Integer.parseInt(newFileName.split("_")[0]);
+                    
+                    // Get the number of images for this variant
+                    int imageCount = 1; // Default to 1 image per variant
+                    
+                    if (currentImageIndex < variantImages.size()) {
+                        String originalFilename = variantImages.get(currentImageIndex).getOriginalFilename();
+                        log.info("Processing variant images for filename: {}", originalFilename);
+                        
+                        // Try to extract image count from filename (e.g., "2_variant.jpg" means 2 images)
+                        try {
+                            if (originalFilename != null && originalFilename.contains("_")) {
+                                String[] parts = originalFilename.split("_");
+                                if (parts.length > 0 && parts[0].matches("\\d+")) {
+                                    imageCount = Integer.parseInt(parts[0]);
+                                }
+                            }
+                        } catch (NumberFormatException e) {
+                            log.warn("Could not parse image count from filename: {}, using default count of 1", originalFilename);
                         }
-                        // Option 2: Generate a sequential count based on current index
-                        else {
-                            log.info("il n'y a pas de numer)");
-                            imageCount = currentImageIndex + 1;
-                        }
-                    } catch (NumberFormatException e) {
-                        // Fallback to using the current index
-                        imageCount = currentImageIndex + 1;
-
-                        // Optional: Log the filename parsing issue
-                        log.warn("Could not parse image count from filename: " + originalFilename);
                     }
-                    //log.info("Processing variant images" + imageCount + " " + currentImageIndex + " " + variantImages.size());
+
+                    log.info("Processing {} images for variant: {}", imageCount, variant.getName());
+                    
                     // Process images for this variant
                     for (int i = 0; i < imageCount && currentImageIndex < variantImages.size(); i++) {
-                        log.info("Processing image: " + variantImages.get(currentImageIndex).getOriginalFilename());
                         MultipartFile image = variantImages.get(currentImageIndex);
+                        log.info("Processing image {}: {}", currentImageIndex, image.getOriginalFilename());
+                        
                         try {
                             if (!image.isEmpty()) {
-                                String imageUrl = gcpStorageService.uploadFile(image);
+                                String imageUrl = uploadFile(image);
                                 variantImageUrls.add(imageUrl);
+                                log.info("Successfully uploaded variant image: {}", imageUrl);
                             }
                         } catch (IOException e) {
-                            throw new RuntimeException("Failed to upload variant image: " + e.getMessage());
+                            log.error("Failed to upload variant image: {}", e.getMessage());
+                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                    .body(Map.of("error", "Failed to upload variant image: " + e.getMessage()));
                         }
+                        currentImageIndex++;
                     }
 
                     variant.setImages(variantImageUrls);
+                    log.info("Set {} images for variant: {}", variantImageUrls.size(), variant.getName());
                 }
             }
 
             Product saved = articleService.createProduct(productDto, Long.parseLong(storeId));
+            log.info("Product created successfully with ID: {}", saved.getId());
             return ResponseEntity.ok(saved);
 
         } catch (ValidationException e) {
-            log.error("Failed to create product: " + e.getMessage());
-            throw new RuntimeException("Failed to create product: " + e.getMessage());
+            log.error("Validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Validation failed: " + e.getMessage()));
         } catch (DuplicateSkuException e) {
-            throw new RuntimeException(e);
+            log.error("Duplicate SKU: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Duplicate SKU: " + e.getMessage()));
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to parse product data: " + e.getMessage());
+            log.error("Failed to parse product data: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to parse product data: " + e.getMessage()));
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create product: " + e.getMessage() + e.getClass() + Arrays.toString(e.getStackTrace()));
+            log.error("Failed to create product: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create product: " + e.getMessage()));
         }
     }
 }
-
-

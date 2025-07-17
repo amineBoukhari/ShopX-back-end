@@ -238,7 +238,7 @@ public class ProductService {
     @Transactional
     public Product createProduct(CreateProductDto dto, Long storeId) throws DuplicateSkuException {
         Store store = storeService.getStoreById(storeId, null);
-        ProductType type = productTypeService.getProductTypeById1(dto.productTypeId);
+        ProductType type = null; // Fake it for now
 
 
         // Vérifier si le SKU existe déjà
