@@ -8,6 +8,8 @@ import com.olatech.shopxauthservice.Model.subscriptions.UsageMetric;
 import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
+import java.util.Date;
 
 @Entity
 public class Store {
@@ -33,6 +35,27 @@ public class Store {
     private String logo;
 
     private boolean isActive = true;
+
+        @Column(name = "creation_method")
+    private String creationMethod; // "template" or "ai"
+
+    @Column(name = "template_id")
+    private String templateId;
+
+    @Column(name = "original_prompt", columnDefinition = "TEXT")
+    private String originalPrompt; // The user's AI prompt
+
+    @Column(name = "ai_generated_theme", columnDefinition = "TEXT")
+    private String aiGeneratedTheme; // JSON string of AI theme data
+
+    @Column(name = "last_deployed_at")
+    private Date lastDeployedAt;
+
+    @Column(name = "app_runner_url")
+    private String appRunnerUrl;
+
+    @Column(name = "created_at")
+    private Date createdAt;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
@@ -195,6 +218,62 @@ public class Store {
     
     public void setSubdomain(String subdomain) {
         this.subdomain = subdomain;
+    }
+
+        public String getCreationMethod() {
+        return creationMethod;
+    }
+
+    public void setCreationMethod(String creationMethod) {
+        this.creationMethod = creationMethod;
+    }
+
+    public String getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(String templateId) {
+        this.templateId = templateId;
+    }
+
+    public String getOriginalPrompt() {
+        return originalPrompt;
+    }
+
+    public void setOriginalPrompt(String originalPrompt) {
+        this.originalPrompt = originalPrompt;
+    }
+
+    public String getAiGeneratedTheme() {
+        return aiGeneratedTheme;
+    }
+
+    public void setAiGeneratedTheme(String aiGeneratedTheme) {
+        this.aiGeneratedTheme = aiGeneratedTheme;
+    }
+
+    public Date getLastDeployedAt() {
+        return lastDeployedAt;
+    }
+
+    public void setLastDeployedAt(Date lastDeployedAt) {
+        this.lastDeployedAt = lastDeployedAt;
+    }
+
+    public String getAppRunnerUrl() {
+        return appRunnerUrl;
+    }
+
+    public void setAppRunnerUrl(String appRunnerUrl) {
+        this.appRunnerUrl = appRunnerUrl;
+    }
+
+    public Date getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Date createdAt) {
+        this.createdAt = createdAt;
     }
 
     @Override

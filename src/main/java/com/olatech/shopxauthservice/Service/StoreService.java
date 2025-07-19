@@ -1,5 +1,6 @@
 package com.olatech.shopxauthservice.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.olatech.shopxauthservice.DTO.StoreDTO;
 import com.olatech.shopxauthservice.DTO.WebsiteDTO;
 import com.olatech.shopxauthservice.Model.Store;
@@ -16,7 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class StoreService {
@@ -35,8 +38,13 @@ public class StoreService {
     @Autowired
     private Route53Service route53Service;
 
+    @Autowired
+    private OpenAIService openAIService;
+
     @Value("${aws.route53.root.domain}")
     private String rootDomain;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
     public Store createStore(StoreDTO storeDTO, Users owner) {
@@ -58,16 +66,26 @@ public class StoreService {
         return store;
     }
 
+    /**
+     * Updated createWebsite method with AI theme generation support
+     */
     @Transactional
     public Store createWebsite(WebsiteDTO websiteDTO, Users owner) {
         logger.info("Creating website with DTO: {}", websiteDTO);
+
+        logger.info("DEBUG: Creation method received: '{}'", websiteDTO.getCreationMethod());
+        logger.info("DEBUG: Theme prompt received: '{}'", websiteDTO.getThemePrompt());
+        logger.info("DEBUG: Template received: '{}'", websiteDTO.getTemplate());
 
         if (websiteDTO == null) throw new IllegalArgumentException("WebsiteDTO cannot be null");
 
         String name = websiteDTO.getName();
         String subdomain = websiteDTO.getSubdomain();
+        String creationMethod = websiteDTO.getCreationMethod();
         String template = websiteDTO.getTemplate();
+        String themePrompt = websiteDTO.getThemePrompt();
 
+        // Basic validation
         if (name == null || name.trim().isEmpty())
             throw new IllegalArgumentException("Website name cannot be null or empty.");
         if (subdomain == null || subdomain.trim().isEmpty())
@@ -75,30 +93,113 @@ public class StoreService {
         if (owner == null)
             throw new IllegalArgumentException("Owner cannot be null");
 
+        // Handle backward compatibility - default to template method if not specified
+        if (creationMethod == null || creationMethod.trim().isEmpty()) {
+            creationMethod = "template";
+        }
+
+        // Method-specific validation
+        if ("template".equals(creationMethod) && (template == null || template.trim().isEmpty())) {
+            // For backward compatibility, use default template if not specified
+            template = "default";
+        }
+        if ("ai".equals(creationMethod) && (themePrompt == null || themePrompt.trim().length() < 10)) {
+            throw new IllegalArgumentException("Theme prompt is required and must be at least 10 characters when using AI method");
+        }
+
         String cleanName = name.trim();
         String cleanSubdomain = subdomain.trim().toLowerCase();
+        String cleanCreationMethod = creationMethod.trim();
         String cleanTemplate = template != null ? template.trim() : "default";
+        String cleanThemePrompt = themePrompt != null ? themePrompt.trim() : null;
 
         String slug = generateSlug(cleanName);
 
+        // Handle AI theme generation
+        Map<String, Object> aiGeneratedTheme = null;
+        if ("ai".equals(cleanCreationMethod)) {
+            logger.info("DEBUG: AI METHOD DETECTED - Starting AI theme generation");
+            logger.info("DEBUG: Theme prompt for AI: '{}'", websiteDTO.getThemePrompt());
+            
+      try {
+    logger.info("DEBUG: Calling OpenAI with prompt: '{}'", cleanThemePrompt);
+    
+        aiGeneratedTheme = openAIService.generateWebsiteTheme(cleanThemePrompt);
+        
+        logger.info("DEBUG: OpenAI call completed successfully");
+        logger.info("DEBUG: AI theme response: {}", aiGeneratedTheme);
+        
+        // Debug specific parts of the response
+        if (aiGeneratedTheme != null) {
+            logger.info("DEBUG: Theme template ID: {}", aiGeneratedTheme.get("templateId"));
+            logger.info("DEBUG: Theme title: {}", aiGeneratedTheme.get("title"));
+            logger.info("DEBUG: Theme colors: {}", aiGeneratedTheme.get("colors"));
+            logger.info("DEBUG: Theme style: {}", aiGeneratedTheme.get("style"));
+            logger.info("DEBUG: Theme content: {}", aiGeneratedTheme.get("content"));
+        } else {
+            logger.warn("DEBUG: AI theme response is NULL!");
+        }
+        
+    } catch (Exception aiError) {
+        logger.error("DEBUG: AI theme generation failed with error: {}", aiError.getMessage(), aiError);
+        logger.error("DEBUG: Error class: {}", aiError.getClass().getSimpleName());
+        throw new RuntimeException("Failed to generate AI theme: " + aiError.getMessage());
+    }
+        }
+
+        // Create the store/website
         Store store = new Store();
         store.setName(cleanName);
         store.setSubdomain(cleanSubdomain);
-        store.setTemplate(cleanTemplate);
         store.setOwner(owner);
         store.setSlug(slug);
         store.setActive(true);
+        store.setCreatedAt(new Date());
+        
+        // Set creation method
+        store.setCreationMethod(cleanCreationMethod);
+        
+        // Handle template vs AI
+        if ("template".equals(cleanCreationMethod)) {
+            store.setTemplate(cleanTemplate);
+            store.setTemplateId(cleanTemplate);
+        } else if ("ai".equals(cleanCreationMethod)) {
+            store.setTemplate("ai-generated");
+            store.setTemplateId("ai-generated");
+            store.setOriginalPrompt(cleanThemePrompt);
+            
+            // Store AI theme data as JSON string
+            if (aiGeneratedTheme != null) {
+                try {
+                    store.setAiGeneratedTheme(objectMapper.writeValueAsString(aiGeneratedTheme));
+                } catch (Exception e) {
+                    logger.error("Error serializing AI theme data: {}", e.getMessage());
+                    store.setAiGeneratedTheme(null);
+                }
+            }
+        }
 
         store = storeRepository.save(store);
 
+        // Create owner role
         StoreRole ownerRole = new StoreRole();
         ownerRole.setStore(store);
         ownerRole.setUser(owner);
         ownerRole.setRole(StoreRole.StoreRoleType.OWNER);
         storeRoleRepository.save(ownerRole);
 
-        logger.info("Website created successfully with ID: {}", store.getId());
+        logger.info("Website created successfully with ID: {} using method: {}", store.getId(), cleanCreationMethod);
         return store;
+    }
+
+    /**
+     * Backward compatibility method - delegates to new method with AI theme support
+     */
+    @Transactional
+    public Store createWebsite(WebsiteDTO websiteDTO, Users owner, Map<String, Object> aiGeneratedTheme) {
+        // This method signature is for backward compatibility with the controller
+        // The actual AI generation happens in the main createWebsite method above
+        return createWebsite(websiteDTO, owner);
     }
 
     public Store findBySlug(String slug) {
@@ -242,4 +343,71 @@ public class StoreService {
 
         return store.getSubdomain() + "." + rootDomain;
     }
+
+    /**
+     * Helper method to get AI theme data as Map for a store
+     */
+    public Map<String, Object> getAiThemeData(Long storeId) {
+        Store store = getStoreById(storeId);
+        
+        if (store.getAiGeneratedTheme() == null || store.getAiGeneratedTheme().trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            return objectMapper.readValue(store.getAiGeneratedTheme(), Map.class);
+        } catch (Exception e) {
+            logger.error("Error deserializing AI theme data for store {}: {}", storeId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Helper method to update AI theme data for a store
+     */
+    @Transactional
+    public Store updateAiThemeData(Long storeId, Map<String, Object> themeData) {
+        Store store = getStoreById(storeId);
+        
+        try {
+            store.setAiGeneratedTheme(objectMapper.writeValueAsString(themeData));
+            return storeRepository.save(store);
+        } catch (Exception e) {
+            logger.error("Error updating AI theme data for store {}: {}", storeId, e.getMessage());
+            throw new RuntimeException("Failed to update AI theme data: " + e.getMessage());
+        }
+    }
+    @Transactional
+public Store createSimpleWebsite(WebsiteDTO websiteDTO, Users owner) {
+    logger.info("Creating simple website: {}", websiteDTO.getName());
+
+    String cleanName = websiteDTO.getName().trim();
+    String cleanSubdomain = websiteDTO.getSubdomain().trim().toLowerCase();
+    String slug = generateSlug(cleanName);
+
+    // Create simple store record
+    Store store = new Store();
+    store.setName(cleanName);
+    store.setSubdomain(cleanSubdomain);
+    store.setSlug(slug);
+    store.setOwner(owner);
+    store.setActive(true);
+    store.setCreatedAt(new Date());
+    
+    // Set creation method for reference
+    store.setCreationMethod(websiteDTO.getCreationMethod());
+    
+    // Save to database
+    store = storeRepository.save(store);
+
+    // Create owner role
+    StoreRole ownerRole = new StoreRole();
+    ownerRole.setStore(store);
+    ownerRole.setUser(owner);
+    ownerRole.setRole(StoreRole.StoreRoleType.OWNER);
+    storeRoleRepository.save(ownerRole);
+
+    logger.info("Simple website created with ID: {}", store.getId());
+    return store;
+}
 }
