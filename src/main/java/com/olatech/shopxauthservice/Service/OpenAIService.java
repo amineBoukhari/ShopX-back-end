@@ -20,7 +20,7 @@ public class OpenAIService {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenAIService.class);
     
-    @Value("${openai.api.key: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}")
+    @Value("${openai.api.key}")
     private String apiKey;
     
     private final RestTemplate restTemplate;
